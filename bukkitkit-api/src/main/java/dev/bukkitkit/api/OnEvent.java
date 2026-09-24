@@ -13,8 +13,8 @@ import java.lang.annotation.Target;
  * required). If the class is already a {@code @Component}, it is registered only once.
  * <p>
  * The method must take exactly one parameter that is a Bukkit {@code Event} subtype
- * and return {@code void}. BukkitKit injects {@code Listener} when missing and
- * registers the handler at bootstrap.
+ * and return {@code void}. BukkitKit registers the handler at bootstrap (no
+ * {@code implements Listener} or {@code registerEvents} required).
  *
  * <pre>{@code
  * public final class JoinListener {

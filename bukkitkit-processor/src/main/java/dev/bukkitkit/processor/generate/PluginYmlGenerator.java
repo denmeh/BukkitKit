@@ -30,7 +30,7 @@ public final class PluginYmlGenerator {
             writer.write(yamlScalar(plugin.version()));
             writer.write('\n');
             writer.write("main: ");
-            writer.write(plugin.typeName());
+            writer.write(plugin.generatedTypeName());
             writer.write('\n');
             writer.write("api-version: ");
             writer.write(yamlScalar(plugin.apiVersion()));

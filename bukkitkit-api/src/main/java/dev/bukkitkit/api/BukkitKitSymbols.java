@@ -1,7 +1,7 @@
 package dev.bukkitkit.api;
 
 /**
- * Synthetic member names and resource paths used by the processor and runtime.
+ * Resource paths and naming conventions used by the processor and runtime.
  */
 public final class BukkitKitSymbols {
 
@@ -11,17 +11,11 @@ public final class BukkitKitSymbols {
      */
     public static final String BOOTSTRAP_RESOURCE = "META-INF/bukkitkit/bootstrap";
 
-    /** Synthetic singleton field injected into {@link Component} classes (not for app use). */
-    public static final String INSTANCE_FIELD = "__bukkitKit_instance";
-
-    /** Synthetic bind method injected into {@link Component} classes (not for app use). */
-    public static final String BIND_METHOD = "__bukkitKit_bind";
-
-    /** Synthetic unbind method injected into {@link Component} classes (not for app use). */
-    public static final String UNBIND_METHOD = "__bukkitKit_unbind";
-
-    /** Instance method on {@link BukkitKit} plugins that assigns component fields. */
-    public static final String WIRE_METHOD = "__bukkitKit_wire";
+    /**
+     * Suffix appended to a {@link BukkitKit} marker simple name for the generated
+     * {@code JavaPlugin} entry (e.g. {@code DemoPlugin} → {@code DemoPlugin_BukkitKit}).
+     */
+    public static final String GENERATED_PLUGIN_SUFFIX = "_BukkitKit";
 
     private BukkitKitSymbols() {
     }

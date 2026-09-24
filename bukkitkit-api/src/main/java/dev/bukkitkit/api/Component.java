@@ -9,8 +9,9 @@ import java.lang.annotation.Target;
 /**
  * Marks a class as a BukkitKit component.
  * <p>
- * Components are discovered at compile time and registered with the container
- * via generated code. Dependencies are satisfied through constructor injection.
+ * Components are discovered at compile time and created by generated bootstrap
+ * code. Dependencies are satisfied through constructor injection or {@link Wire}
+ * fields.
  */
 @Documented
 @Target(ElementType.TYPE)

@@ -12,7 +12,7 @@
 
     <artifactId>bukkitkit-processor</artifactId>
     <name>BukkitKit Processor</name>
-    <description>Compile-time singleton injection and bootstrap generation</description>
+    <description>Compile-time Filer codegen for components and plugin entry</description>
 
     <dependencies>
         <dependency>
@@ -22,6 +22,11 @@
         <dependency>
             <groupId>com.squareup</groupId>
             <artifactId>javapoet</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.denmeh</groupId>
+            <artifactId>bukkitkit-core</artifactId>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -42,37 +47,6 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
                     <proc>none</proc>
-                    <!-- release forbids exporting jdk.compiler packages; use source/target instead -->
-                    <release combine.self="override"/>
-                    <source>25</source>
-                    <target>25</target>
-                    <compilerArgs>
-                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED</arg>
-                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED</arg>
-                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED</arg>
-                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED</arg>
-                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED</arg>
-                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED</arg>
-                    </compilerArgs>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <configuration>
-                    <argLine>
-                        --add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED
-                        --add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED
-                        --add-exports=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED
-                        --add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED
-                        --add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED
-                        --add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED
-                        --add-opens=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED
-                        --add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED
-                        --add-opens=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED
-                        --add-opens=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED
-                        --add-opens=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED
-                    </argLine>
                 </configuration>
             </plugin>
         </plugins>

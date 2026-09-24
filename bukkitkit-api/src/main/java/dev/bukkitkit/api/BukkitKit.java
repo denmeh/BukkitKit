@@ -7,8 +7,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks a plain class as the BukkitKit plugin entry. BukkitKit turns it into a
- * {@code JavaPlugin} at compile time and writes {@code plugin.yml} from the metadata.
+ * Marks a plain class as the BukkitKit plugin entry metadata. BukkitKit generates a
+ * {@code JavaPlugin} subclass ({@code YourClass_BukkitKit}) and writes {@code plugin.yml}
+ * from the annotation values.
  *
  * <pre>{@code
  * @BukkitKit(

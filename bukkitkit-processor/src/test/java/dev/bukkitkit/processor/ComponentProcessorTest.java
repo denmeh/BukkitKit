@@ -43,11 +43,11 @@ class ComponentProcessorTest {
         assertThat(compilation)
                 .generatedSourceFile("demo.BukkitKitInit")
                 .contentsAsUtf8String()
-                .contains("__bukkitKit_bind");
+                .contains("this.repository = new Repository()");
         assertThat(compilation)
                 .generatedSourceFile("demo.BukkitKitInit")
                 .contentsAsUtf8String()
-                .contains("__bukkitKit_instance");
+                .contains("this.service = new Service(this.repository)");
         assertThat(compilation)
                 .generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/bukkitkit/bootstrap")
                 .contentsAsUtf8String()
@@ -130,11 +130,11 @@ class ComponentProcessorTest {
         assertThat(compilation)
                 .generatedSourceFile("demo.BukkitKitInit")
                 .contentsAsUtf8String()
-                .contains("Ticker.__bukkitKit_instance.start()");
+                .contains("this.ticker.start()");
         assertThat(compilation)
                 .generatedSourceFile("demo.BukkitKitInit")
                 .contentsAsUtf8String()
-                .contains("Ticker.__bukkitKit_instance.stop()");
+                .contains("this.ticker.stop()");
         assertThat(compilation)
                 .generatedSourceFile("demo.BukkitKitInit")
                 .contentsAsUtf8String()
@@ -228,11 +228,11 @@ class ComponentProcessorTest {
         assertThat(compilation)
                 .generatedSourceFile("demo.BukkitKitInit")
                 .contentsAsUtf8String()
-                .contains("JoinListener.__bukkitKit_instance != null");
+                .contains("joinListenerListener");
         assertThat(compilation)
                 .generatedSourceFile("demo.BukkitKitInit")
                 .contentsAsUtf8String()
-                .contains("JoinListener.__bukkitKit_bind");
+                .contains("this.joinListener = new JoinListener()");
     }
 
     @Test
@@ -267,8 +267,8 @@ class ComponentProcessorTest {
         } catch (java.io.IOException ex) {
             throw new AssertionError(ex);
         }
-        int binds = init.split("Both.__bukkitKit_bind", -1).length - 1;
-        org.junit.jupiter.api.Assertions.assertEquals(1, binds);
+        int creates = init.split("new Both\\(", -1).length - 1;
+        org.junit.jupiter.api.Assertions.assertEquals(1, creates);
     }
 
     @Test
@@ -318,13 +318,17 @@ class ComponentProcessorTest {
 
         assertThat(compilation).succeeded();
         assertThat(compilation)
+                .generatedSourceFile("demo.HelloPlugin_BukkitKit")
+                .contentsAsUtf8String()
+                .contains("extends JavaPlugin");
+        assertThat(compilation)
                 .generatedFile(StandardLocation.CLASS_OUTPUT, "plugin.yml")
                 .contentsAsUtf8String()
                 .contains("name: Hello");
         assertThat(compilation)
                 .generatedFile(StandardLocation.CLASS_OUTPUT, "plugin.yml")
                 .contentsAsUtf8String()
-                .contains("main: demo.HelloPlugin");
+                .contains("main: demo.HelloPlugin_BukkitKit");
         assertThat(compilation)
                 .generatedFile(StandardLocation.CLASS_OUTPUT, "plugin.yml")
                 .contentsAsUtf8String()
@@ -401,5 +405,37 @@ class ComponentProcessorTest {
 
         assertThat(compilation).failed();
         assertThat(compilation).hadErrorContaining("Unresolved dependency");
+    }
+
+    @Test
+    void generatesFieldWireCalls() {
+        JavaFileObject repository = JavaFileObjects.forSourceLines(
+                "demo.Repository",
+                "package demo;",
+                "import dev.bukkitkit.api.Component;",
+                "@Component",
+                "public class Repository {",
+                "  public Repository() {}",
+                "}");
+        JavaFileObject service = JavaFileObjects.forSourceLines(
+                "demo.Service",
+                "package demo;",
+                "import dev.bukkitkit.api.Component;",
+                "import dev.bukkitkit.api.Wire;",
+                "@Component",
+                "public class Service {",
+                "  @Wire private Repository repository;",
+                "  public Service() {}",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(repository, service);
+
+        assertThat(compilation).succeeded();
+        assertThat(compilation)
+                .generatedSourceFile("demo.BukkitKitInit")
+                .contentsAsUtf8String()
+                .contains("FieldWire.set(this.service, \"repository\", this.repository)");
     }
 }

@@ -15,7 +15,7 @@ You still write normal Paper/Bukkit code. BukkitKit does not replace the Minecra
 
 ## Why BukkitKit
 
-- **Start simple** — One annotated marker class is enough to begin. BukkitKit writes the `JavaPlugin` entry and `plugin.yml`. Add features only when you need them.
+- **Start simple** — One annotated marker class is enough to begin. BukkitKit generates the `JavaPlugin` entry and `plugin.yml`. Add features only when you need them.
 - **Build in pieces** — Split your plugin into small components. BukkitKit connects them for you at compile time.
 - **Less Bukkit glue** — Register listeners, schedulers, and startup hooks with annotations instead of manual boilerplate.
 - **Fail at build time** — Missing wiring fails the build, not the server at runtime.
@@ -35,8 +35,8 @@ just docs
 | Module | Role |
 |--------|------|
 | `bukkitkit-api` | Public annotations (`@BukkitKit`, `@Component`, `@Wire`, …) |
-| `bukkitkit-core` | Bootstrap loading |
-| `bukkitkit-processor` | Compile-time codegen |
+| `bukkitkit-core` | Bootstrap loading + field wiring |
+| `bukkitkit-processor` | Compile-time Filer codegen |
 | `bukkitkit-paper` | Paper runtime + shaded processor |
 | `bukkitkit-demo` | Example plugin |
 

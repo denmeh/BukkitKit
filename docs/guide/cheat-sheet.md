@@ -4,7 +4,7 @@ Quick reference after you have finished the tutorial.
 
 ## `@BukkitKit`
 
-On a plain public top-level class (do **not** extend `JavaPlugin`). Metadata becomes `plugin.yml`; BukkitKit turns the class into the plugin entry at compile time.
+On a plain public top-level class (do **not** extend `JavaPlugin`). Metadata becomes `plugin.yml`; BukkitKit generates a `YourClass_BukkitKit` `JavaPlugin` entry and points `main` at it.
 
 Required: `name`, `version`, `apiVersion`. Optional: `description`, `authors`.
 

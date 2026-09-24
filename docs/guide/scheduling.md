@@ -87,7 +87,7 @@ When the plugin disables, BukkitKit cancels the schedules it started. You do not
 
 You now have the full starter toolkit:
 
-1. `@BukkitKit` marker (+ generated `plugin.yml`)
+1. `@BukkitKit` marker (+ generated `JavaPlugin` entry and `plugin.yml`)
 2. `@Component` services
 3. `@Wire` between them and built-ins
 4. `@OnEvent` for listeners

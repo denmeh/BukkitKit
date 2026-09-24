@@ -36,4 +36,4 @@ When you need a quick reminder later, use the [cheat sheet](./cheat-sheet).
 
 ## What “compile-time” means (briefly)
 
-When you build your plugin, BukkitKit’s annotation processor reads your annotations and generates bootstrap code. If something cannot be wired (for example a missing dependency), the **build fails** instead of crashing when the server starts. You do not call that generated code yourself — it runs automatically when your plugin enables.
+When you build your plugin, BukkitKit’s annotation processor reads your annotations and generates sources (`YourClass_BukkitKit`, bootstrap, `plugin.yml`). If something cannot be wired (for example a missing dependency), the **build fails** instead of crashing when the server starts. You do not call that generated code yourself — it runs automatically when your plugin enables.

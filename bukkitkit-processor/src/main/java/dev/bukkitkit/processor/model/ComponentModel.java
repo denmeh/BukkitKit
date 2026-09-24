@@ -4,7 +4,7 @@ import javax.lang.model.element.TypeElement;
 import java.util.List;
 
 /**
- * Analyzed component type ready for injection and bootstrap generation.
+ * Analyzed component type ready for bootstrap generation.
  */
 public record ComponentModel(
         TypeElement type,
@@ -18,7 +18,7 @@ public record ComponentModel(
         List<EventMethod> eventMethods,
         List<LifecycleMethod> onEnableMethods,
         List<LifecycleMethod> onDisableMethods,
-        boolean needsListener
+        boolean alreadyListener
 ) {
 
     public enum InjectionKind {

@@ -1,6 +1,6 @@
 # 1. Your first plugin
 
-Goal: declare a BukkitKit plugin with metadata — no `JavaPlugin` subclass and no hand-written `plugin.yml`.
+Goal: declare a BukkitKit plugin with metadata — without writing a `JavaPlugin` subclass or `plugin.yml` yourself.
 
 ## Before BukkitKit
 
@@ -47,8 +47,8 @@ That is the whole change for step 1.
 
 What happens under the hood (you do not write this):
 
-- BukkitKit turns `HelloPlugin` into a `JavaPlugin` at compile time
-- It writes `plugin.yml` from the annotation (`name`, `version`, `main`, `api-version`, …)
+- BukkitKit generates `HelloPlugin_BukkitKit extends JavaPlugin` at compile time
+- It writes `plugin.yml` from the annotation (`name`, `version`, `main` → the generated class, `api-version`, …)
 - When the server enables the plugin, BukkitKit runs bootstrap (components, events, schedules)
 
 For this empty plugin there are no components yet, so bootstrap is a no-op beyond setup. Add startup logic later with `@OnEnable` on components.

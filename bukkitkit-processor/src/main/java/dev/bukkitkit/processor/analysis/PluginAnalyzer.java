@@ -59,12 +59,12 @@ public final class PluginAnalyzer {
         }
         if (alreadyJavaPlugin(type)) {
             error(type, "@BukkitKit class must not extend JavaPlugin "
-                    + "(BukkitKit generates that)");
+                    + "(BukkitKit generates a separate JavaPlugin entry)");
             return null;
         }
         if (extendsSomethingOtherThanObject(type)) {
             error(type, "@BukkitKit class must not declare a superclass "
-                    + "(BukkitKit makes it extend JavaPlugin)");
+                    + "(marker is metadata only; BukkitKit generates the JavaPlugin entry)");
             return null;
         }
 
@@ -110,6 +110,7 @@ public final class PluginAnalyzer {
         return new PluginModel(
                 type,
                 type.getQualifiedName().toString(),
+                elements.getPackageOf(type).getQualifiedName().toString(),
                 annotation.name(),
                 annotation.version(),
                 annotation.apiVersion(),

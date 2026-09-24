@@ -8,13 +8,10 @@ import dev.bukkitkit.api.OnEvent;
 import dev.bukkitkit.processor.analysis.ComponentAnalyzer;
 import dev.bukkitkit.processor.analysis.PluginAnalyzer;
 import dev.bukkitkit.processor.generate.BootstrapGenerator;
+import dev.bukkitkit.processor.generate.PluginGenerator;
 import dev.bukkitkit.processor.generate.PluginYmlGenerator;
-import dev.bukkitkit.processor.inject.PluginInjector;
-import dev.bukkitkit.processor.inject.SingletonInjector;
 import dev.bukkitkit.processor.model.ComponentModel;
 import dev.bukkitkit.processor.model.PluginModel;
-import dev.bukkitkit.processor.util.JavacContext;
-import dev.bukkitkit.processor.util.JavacOpener;
 import dev.bukkitkit.processor.validation.GraphValidator;
 
 import javax.annotation.processing.AbstractProcessor;
@@ -39,7 +36,7 @@ import java.util.Set;
 
 /**
  * Discovers {@link Component} / {@link OnEvent} / {@link OnEnable} / {@link OnDisable} /
- * {@link BukkitKit} types, injects singletons and plugin wiring.
+ * {@link BukkitKit} types and generates bootstrap + plugin entry sources via {@code Filer}.
  */
 @SupportedAnnotationTypes({
         "dev.bukkitkit.api.Component",
@@ -54,16 +51,14 @@ public final class ComponentProcessor extends AbstractProcessor {
     private ComponentAnalyzer componentAnalyzer;
     private PluginAnalyzer pluginAnalyzer;
     private GraphValidator validator;
-    private SingletonInjector singletonInjector;
-    private PluginInjector pluginInjector;
-    private BootstrapGenerator generator;
+    private BootstrapGenerator bootstrapGenerator;
+    private PluginGenerator pluginGenerator;
     private PluginYmlGenerator pluginYmlGenerator;
     private boolean processed;
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
-        JavacOpener.open();
         this.componentAnalyzer = new ComponentAnalyzer(
                 processingEnv.getElementUtils(),
                 processingEnv.getTypeUtils(),
@@ -73,10 +68,8 @@ public final class ComponentProcessor extends AbstractProcessor {
                 processingEnv.getTypeUtils(),
                 processingEnv.getMessager());
         this.validator = new GraphValidator(processingEnv.getMessager());
-        JavacContext javac = JavacContext.from(processingEnv);
-        this.singletonInjector = new SingletonInjector(javac, processingEnv.getElementUtils());
-        this.pluginInjector = new PluginInjector(javac, processingEnv.getElementUtils());
-        this.generator = new BootstrapGenerator(processingEnv.getFiler());
+        this.bootstrapGenerator = new BootstrapGenerator(processingEnv.getFiler());
+        this.pluginGenerator = new PluginGenerator(processingEnv.getFiler());
         this.pluginYmlGenerator = new PluginYmlGenerator(processingEnv.getFiler());
     }
 
@@ -140,22 +133,9 @@ public final class ComponentProcessor extends AbstractProcessor {
                 ? List.of()
                 : validator.topologicalOrder(components);
 
-        for (ComponentModel component : ordered) {
-            try {
-                singletonInjector.inject(component);
-            } catch (RuntimeException ex) {
-                processingEnv.getMessager().printMessage(
-                        Diagnostic.Kind.ERROR,
-                        "BukkitKit: failed to inject singleton into " + component.typeName()
-                                + ": " + ex.getMessage(),
-                        component.type());
-                return false;
-            }
-        }
-
         if (!ordered.isEmpty()) {
             try {
-                generator.write(ordered);
+                bootstrapGenerator.write(ordered);
             } catch (IOException ex) {
                 processingEnv.getMessager().printMessage(
                         Diagnostic.Kind.ERROR,
@@ -166,12 +146,12 @@ public final class ComponentProcessor extends AbstractProcessor {
 
         for (PluginModel plugin : plugins) {
             try {
-                pluginInjector.inject(plugin);
+                pluginGenerator.write(plugin);
                 pluginYmlGenerator.write(plugin);
             } catch (RuntimeException | IOException ex) {
                 processingEnv.getMessager().printMessage(
                         Diagnostic.Kind.ERROR,
-                        "BukkitKit: failed to wire plugin " + plugin.typeName()
+                        "BukkitKit: failed to generate plugin entry for " + plugin.typeName()
                                 + ": " + ex.getMessage(),
                         plugin.type());
                 return false;

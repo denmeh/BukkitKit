@@ -70,7 +70,6 @@ public final class ComponentAnalyzer {
         List<LifecycleMethod> onEnableMethods = readLifecycleMethods(type, OnEnable.class, "@OnEnable");
         List<LifecycleMethod> onDisableMethods = readLifecycleMethods(type, OnDisable.class, "@OnDisable");
         boolean alreadyListener = implementsListener(type);
-        boolean needsListener = !eventMethods.isEmpty() && !alreadyListener;
 
         List<ExecutableElement> publicConstructors = ElementFilter.constructorsIn(type.getEnclosedElements())
                 .stream()
@@ -108,7 +107,7 @@ public final class ComponentAnalyzer {
                     List.copyOf(eventMethods),
                     List.copyOf(onEnableMethods),
                     List.copyOf(onDisableMethods),
-                    needsListener);
+                    alreadyListener);
         }
 
         List<String> dependencies = new ArrayList<>();
@@ -134,7 +133,7 @@ public final class ComponentAnalyzer {
                 List.copyOf(eventMethods),
                 List.copyOf(onEnableMethods),
                 List.copyOf(onDisableMethods),
-                needsListener);
+                alreadyListener);
     }
 
     private boolean implementsListener(TypeElement type) {
