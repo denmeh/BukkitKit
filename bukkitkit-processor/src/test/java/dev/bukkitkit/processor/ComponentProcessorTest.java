@@ -302,12 +302,26 @@ class ComponentProcessorTest {
                 "demo.HelloPlugin",
                 "package demo;",
                 "import dev.bukkitkit.api.BukkitKit;",
+                "import dev.bukkitkit.api.Permission;",
+                "import dev.bukkitkit.api.PermissionDefault;",
+                "import dev.bukkitkit.api.PluginLoad;",
                 "@BukkitKit(",
                 "  name = \"Hello\",",
                 "  version = \"1.0.0\",",
                 "  apiVersion = \"1.21\",",
                 "  description = \"Demo\",",
-                "  authors = {\"denmeh\"}",
+                "  authors = {\"denmeh\"},",
+                "  website = \"https://example.com\",",
+                "  prefix = \"Hello\",",
+                "  load = PluginLoad.STARTUP,",
+                "  depend = {\"Vault\"},",
+                "  softDepend = {\"WorldGuard\"},",
+                "  loadBefore = {\"OtherPlugin\"},",
+                "  provides = {\"HelloApi\"},",
+                "  permissions = {",
+                "    @Permission(name = \"hello.use\", description = \"Use /hello\",",
+                "        defaultValue = PermissionDefault.TRUE, children = {\"hello.admin\"})",
+                "  }",
                 ")",
                 "public final class HelloPlugin {",
                 "}");
@@ -333,6 +347,167 @@ class ComponentProcessorTest {
                 .generatedFile(StandardLocation.CLASS_OUTPUT, "plugin.yml")
                 .contentsAsUtf8String()
                 .contains("api-version: \"1.21\"");
+        assertThat(compilation)
+                .generatedFile(StandardLocation.CLASS_OUTPUT, "plugin.yml")
+                .contentsAsUtf8String()
+                .contains("website: \"https://example.com\"");
+        assertThat(compilation)
+                .generatedFile(StandardLocation.CLASS_OUTPUT, "plugin.yml")
+                .contentsAsUtf8String()
+                .contains("load: STARTUP");
+        assertThat(compilation)
+                .generatedFile(StandardLocation.CLASS_OUTPUT, "plugin.yml")
+                .contentsAsUtf8String()
+                .contains("depend: [Vault]");
+        assertThat(compilation)
+                .generatedFile(StandardLocation.CLASS_OUTPUT, "plugin.yml")
+                .contentsAsUtf8String()
+                .contains("softdepend: [WorldGuard]");
+        assertThat(compilation)
+                .generatedFile(StandardLocation.CLASS_OUTPUT, "plugin.yml")
+                .contentsAsUtf8String()
+                .contains("permissions:");
+        assertThat(compilation)
+                .generatedFile(StandardLocation.CLASS_OUTPUT, "plugin.yml")
+                .contentsAsUtf8String()
+                .contains("hello.use:");
+        assertThat(compilation)
+                .generatedFile(StandardLocation.CLASS_OUTPUT, "plugin.yml")
+                .contentsAsUtf8String()
+                .contains("default: true");
+    }
+
+    @Test
+    void generatesCommandRegistrationAndPluginYml() {
+        JavaFileObject marker = JavaFileObjects.forSourceLines(
+                "demo.HelloPlugin",
+                "package demo;",
+                "import dev.bukkitkit.api.BukkitKit;",
+                "@BukkitKit(name = \"Hello\", version = \"1\", apiVersion = \"1.21\")",
+                "public final class HelloPlugin {",
+                "}");
+        JavaFileObject commands = JavaFileObjects.forSourceLines(
+                "demo.GreetCommands",
+                "package demo;",
+                "import dev.bukkitkit.api.Command;",
+                "import dev.bukkitkit.api.TabComplete;",
+                "import org.bukkit.command.CommandSender;",
+                "import java.util.List;",
+                "public class GreetCommands {",
+                "  public GreetCommands() {}",
+                "  @Command(name = \"greet\", description = \"Greet\", usage = \"/greet\",",
+                "      aliases = {\"hi\"}, permission = \"hello.greet\")",
+                "  public void greet(CommandSender sender, String[] args) {}",
+                "  @TabComplete(\"greet\")",
+                "  public List<String> greetTab(CommandSender sender, String[] args) {",
+                "    return List.of();",
+                "  }",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(marker, commands);
+
+        assertThat(compilation).succeeded();
+        assertThat(compilation)
+                .generatedSourceFile("demo.BukkitKitInit")
+                .contentsAsUtf8String()
+                .contains("getCommand(\"greet\")");
+        assertThat(compilation)
+                .generatedSourceFile("demo.BukkitKitInit")
+                .contentsAsUtf8String()
+                .contains("setExecutor");
+        assertThat(compilation)
+                .generatedSourceFile("demo.BukkitKitInit")
+                .contentsAsUtf8String()
+                .contains("setTabCompleter");
+        assertThat(compilation)
+                .generatedFile(StandardLocation.CLASS_OUTPUT, "plugin.yml")
+                .contentsAsUtf8String()
+                .contains("commands:");
+        assertThat(compilation)
+                .generatedFile(StandardLocation.CLASS_OUTPUT, "plugin.yml")
+                .contentsAsUtf8String()
+                .contains("greet:");
+        assertThat(compilation)
+                .generatedFile(StandardLocation.CLASS_OUTPUT, "plugin.yml")
+                .contentsAsUtf8String()
+                .contains("aliases: [hi]");
+    }
+
+    @Test
+    void failsOnDuplicateCommandNames() {
+        JavaFileObject first = JavaFileObjects.forSourceLines(
+                "demo.A",
+                "package demo;",
+                "import dev.bukkitkit.api.Command;",
+                "import org.bukkit.command.CommandSender;",
+                "public class A {",
+                "  public A() {}",
+                "  @Command(name = \"ping\")",
+                "  public void ping(CommandSender sender) {}",
+                "}");
+        JavaFileObject second = JavaFileObjects.forSourceLines(
+                "demo.B",
+                "package demo;",
+                "import dev.bukkitkit.api.Command;",
+                "import org.bukkit.command.CommandSender;",
+                "public class B {",
+                "  public B() {}",
+                "  @Command(name = \"ping\")",
+                "  public void ping(CommandSender sender) {}",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(first, second);
+
+        assertThat(compilation).failed();
+        assertThat(compilation).hadErrorContaining("Duplicate @Command name");
+    }
+
+    @Test
+    void failsOnTabCompleteWithoutCommand() {
+        JavaFileObject source = JavaFileObjects.forSourceLines(
+                "demo.OrphanTab",
+                "package demo;",
+                "import dev.bukkitkit.api.TabComplete;",
+                "import org.bukkit.command.CommandSender;",
+                "import java.util.List;",
+                "public class OrphanTab {",
+                "  public OrphanTab() {}",
+                "  @TabComplete(\"missing\")",
+                "  public List<String> tab(CommandSender sender, String[] args) {",
+                "    return List.of();",
+                "  }",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(source);
+
+        assertThat(compilation).failed();
+        assertThat(compilation).hadErrorContaining("unknown @Command name");
+    }
+
+    @Test
+    void failsOnInvalidCommandSignature() {
+        JavaFileObject source = JavaFileObjects.forSourceLines(
+                "demo.BadCommand",
+                "package demo;",
+                "import dev.bukkitkit.api.Command;",
+                "public class BadCommand {",
+                "  public BadCommand() {}",
+                "  @Command(name = \"bad\")",
+                "  public void bad(String only) {}",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(source);
+
+        assertThat(compilation).failed();
+        assertThat(compilation).hadErrorContaining("@Command signature");
     }
 
     @Test

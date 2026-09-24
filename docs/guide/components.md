@@ -4,7 +4,7 @@ Goal: put plugin logic in a dedicated class instead of one giant entry point.
 
 ## Why split things up?
 
-As plugins grow, enable logic becomes a dumping ground: load configs, create managers, register listeners, start tasks. Components let you name a piece of behavior (`PlayerManager`, `WarpService`, …) and keep concerns separate.
+As plugins grow, enable logic becomes a dumping ground: load configs, create managers, register listeners and commands, start tasks. Components let you name a piece of behavior (`PlayerManager`, `WarpService`, …) and keep concerns separate.
 
 ## Create a `@Component`
 
@@ -72,7 +72,10 @@ Server starts plugin
   → BukkitKit creates each managed class once
   → BukkitKit fills @Wire fields
   → @OnEnable methods run (dependency order)
+  → events, commands, and schedules are registered
 ```
+
+Classes can also become managed without `@Component` when they only host `@OnEvent`, `@Command`, `@TabComplete`, `@OnEnable`, or `@OnDisable` methods.
 
 ## Next
 

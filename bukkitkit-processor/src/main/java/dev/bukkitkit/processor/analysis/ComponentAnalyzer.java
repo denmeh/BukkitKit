@@ -1,16 +1,20 @@
 package dev.bukkitkit.processor.analysis;
 
+import dev.bukkitkit.api.Command;
 import dev.bukkitkit.api.OnDisable;
 import dev.bukkitkit.api.OnEnable;
 import dev.bukkitkit.api.OnEvent;
 import dev.bukkitkit.api.Scheduled;
+import dev.bukkitkit.api.TabComplete;
 import dev.bukkitkit.api.Wire;
+import dev.bukkitkit.processor.model.CommandMethod;
 import dev.bukkitkit.processor.model.ComponentModel;
 import dev.bukkitkit.processor.model.ComponentModel.InjectionKind;
 import dev.bukkitkit.processor.model.ComponentModel.WiredField;
 import dev.bukkitkit.processor.model.EventMethod;
 import dev.bukkitkit.processor.model.LifecycleMethod;
 import dev.bukkitkit.processor.model.ScheduledMethod;
+import dev.bukkitkit.processor.model.TabCompleteMethod;
 
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.ElementKind;
@@ -26,15 +30,19 @@ import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
- * Validates and extracts dependency / schedule / event metadata from a {@code @Component} type.
+ * Validates and extracts dependency / schedule / event / command metadata from a managed type.
  */
 public final class ComponentAnalyzer {
 
     private static final String BUKKIT_EVENT = "org.bukkit.event.Event";
     private static final String BUKKIT_LISTENER = "org.bukkit.event.Listener";
+    private static final String COMMAND_SENDER = "org.bukkit.command.CommandSender";
+    private static final String STRING = "java.lang.String";
+    private static final String LIST = "java.util.List";
 
     private final Elements elements;
     private final Types types;
@@ -67,6 +75,8 @@ public final class ComponentAnalyzer {
         List<WiredField> wiredFields = readWiredFields(type);
         List<ScheduledMethod> scheduledMethods = readScheduledMethods(type);
         List<EventMethod> eventMethods = readEventMethods(type);
+        List<CommandMethod> commandMethods = readCommandMethods(type);
+        List<TabCompleteMethod> tabCompleteMethods = readTabCompleteMethods(type);
         List<LifecycleMethod> onEnableMethods = readLifecycleMethods(type, OnEnable.class, "@OnEnable");
         List<LifecycleMethod> onDisableMethods = readLifecycleMethods(type, OnDisable.class, "@OnDisable");
         boolean alreadyListener = implementsListener(type);
@@ -105,6 +115,8 @@ public final class ComponentAnalyzer {
                     List.copyOf(wiredFields),
                     List.copyOf(scheduledMethods),
                     List.copyOf(eventMethods),
+                    List.copyOf(commandMethods),
+                    List.copyOf(tabCompleteMethods),
                     List.copyOf(onEnableMethods),
                     List.copyOf(onDisableMethods),
                     alreadyListener);
@@ -131,6 +143,8 @@ public final class ComponentAnalyzer {
                 List.of(),
                 List.copyOf(scheduledMethods),
                 List.copyOf(eventMethods),
+                List.copyOf(commandMethods),
+                List.copyOf(tabCompleteMethods),
                 List.copyOf(onEnableMethods),
                 List.copyOf(onDisableMethods),
                 alreadyListener);
@@ -297,6 +311,173 @@ public final class ComponentAnalyzer {
                     annotation.ignoreCancelled()));
         }
         return methods;
+    }
+
+    private List<CommandMethod> readCommandMethods(TypeElement type) {
+        List<CommandMethod> methods = new ArrayList<>();
+        TypeElement senderType = elements.getTypeElement(COMMAND_SENDER);
+        for (ExecutableElement method : ElementFilter.methodsIn(type.getEnclosedElements())) {
+            Command annotation = method.getAnnotation(Command.class);
+            if (annotation == null) {
+                continue;
+            }
+            if (senderType == null) {
+                error(method, "@Command requires org.bukkit.command.CommandSender on the classpath (Paper/Bukkit API)");
+                continue;
+            }
+            if (method.getModifiers().contains(Modifier.STATIC)) {
+                error(method, "@Command method must not be static");
+                continue;
+            }
+            if (!method.getModifiers().contains(Modifier.PUBLIC)) {
+                error(method, "@Command method must be public");
+                continue;
+            }
+            TypeMirror returnType = method.getReturnType();
+            boolean booleanReturn = returnType.getKind() == TypeKind.BOOLEAN;
+            if (returnType.getKind() != TypeKind.VOID && !booleanReturn) {
+                error(method, "@Command method must return void or boolean");
+                continue;
+            }
+            if (annotation.name().isBlank()) {
+                error(method, "@Command name() must not be blank");
+                continue;
+            }
+            CommandMethod.Signature signature = resolveCommandSignature(method, senderType);
+            if (signature == null) {
+                error(method, "@Command signature must be (CommandSender), "
+                        + "(CommandSender, String[]), or (CommandSender, String, String[])");
+                continue;
+            }
+            methods.add(new CommandMethod(
+                    method,
+                    method.getSimpleName().toString(),
+                    annotation.name(),
+                    annotation.description(),
+                    annotation.usage(),
+                    List.copyOf(Arrays.asList(annotation.aliases())),
+                    annotation.permission(),
+                    annotation.permissionMessage(),
+                    signature,
+                    booleanReturn));
+        }
+        return methods;
+    }
+
+    private CommandMethod.Signature resolveCommandSignature(
+            ExecutableElement method,
+            TypeElement senderType) {
+        List<? extends VariableElement> params = method.getParameters();
+        if (params.isEmpty() || params.size() > 3) {
+            return null;
+        }
+        if (!isType(params.getFirst().asType(), senderType)) {
+            return null;
+        }
+        if (params.size() == 1) {
+            return CommandMethod.Signature.SENDER;
+        }
+        if (params.size() == 2) {
+            return isStringArray(params.get(1).asType())
+                    ? CommandMethod.Signature.SENDER_ARGS
+                    : null;
+        }
+        if (isString(params.get(1).asType()) && isStringArray(params.get(2).asType())) {
+            return CommandMethod.Signature.SENDER_LABEL_ARGS;
+        }
+        return null;
+    }
+
+    private List<TabCompleteMethod> readTabCompleteMethods(TypeElement type) {
+        List<TabCompleteMethod> methods = new ArrayList<>();
+        TypeElement senderType = elements.getTypeElement(COMMAND_SENDER);
+        for (ExecutableElement method : ElementFilter.methodsIn(type.getEnclosedElements())) {
+            TabComplete annotation = method.getAnnotation(TabComplete.class);
+            if (annotation == null) {
+                continue;
+            }
+            if (senderType == null) {
+                error(method, "@TabComplete requires org.bukkit.command.CommandSender on the classpath (Paper/Bukkit API)");
+                continue;
+            }
+            if (method.getModifiers().contains(Modifier.STATIC)) {
+                error(method, "@TabComplete method must not be static");
+                continue;
+            }
+            if (!method.getModifiers().contains(Modifier.PUBLIC)) {
+                error(method, "@TabComplete method must be public");
+                continue;
+            }
+            if (!isListType(method.getReturnType())) {
+                error(method, "@TabComplete method must return List<String>");
+                continue;
+            }
+            if (annotation.value().isBlank()) {
+                error(method, "@TabComplete value() must not be blank");
+                continue;
+            }
+            TabCompleteMethod.Signature signature = resolveTabSignature(method, senderType);
+            if (signature == null) {
+                error(method, "@TabComplete signature must be (CommandSender, String[]) "
+                        + "or (CommandSender, String, String[])");
+                continue;
+            }
+            methods.add(new TabCompleteMethod(
+                    method,
+                    method.getSimpleName().toString(),
+                    annotation.value(),
+                    signature));
+        }
+        return methods;
+    }
+
+    private TabCompleteMethod.Signature resolveTabSignature(
+            ExecutableElement method,
+            TypeElement senderType) {
+        List<? extends VariableElement> params = method.getParameters();
+        if (params.size() < 2 || params.size() > 3) {
+            return null;
+        }
+        if (!isType(params.getFirst().asType(), senderType)) {
+            return null;
+        }
+        if (params.size() == 2) {
+            return isStringArray(params.get(1).asType())
+                    ? TabCompleteMethod.Signature.SENDER_ARGS
+                    : null;
+        }
+        if (isString(params.get(1).asType()) && isStringArray(params.get(2).asType())) {
+            return TabCompleteMethod.Signature.SENDER_ALIAS_ARGS;
+        }
+        return null;
+    }
+
+    private boolean isListType(TypeMirror type) {
+        if (type.getKind() != TypeKind.DECLARED) {
+            return false;
+        }
+        TypeElement list = elements.getTypeElement(LIST);
+        if (list == null) {
+            return false;
+        }
+        TypeMirror erasure = types.erasure(type);
+        return types.isSameType(erasure, types.erasure(list.asType()));
+    }
+
+    private boolean isType(TypeMirror mirror, TypeElement expected) {
+        return types.isAssignable(mirror, expected.asType());
+    }
+
+    private boolean isString(TypeMirror mirror) {
+        TypeElement string = elements.getTypeElement(STRING);
+        return string != null && types.isSameType(mirror, string.asType());
+    }
+
+    private boolean isStringArray(TypeMirror mirror) {
+        if (mirror.getKind() != TypeKind.ARRAY) {
+            return false;
+        }
+        return isString(((javax.lang.model.type.ArrayType) mirror).getComponentType());
     }
 
     private void error(javax.lang.model.element.Element element, String message) {

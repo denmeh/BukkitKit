@@ -43,13 +43,13 @@ public final class HelloPlugin {
 }
 ```
 
-That is the whole change for step 1.
+That is the whole change for step 1. You can add more metadata later (`description`, `authors`, `website`, `depend`, `permissions`, …) — see [Plugin metadata](./plugin-yml).
 
 What happens under the hood (you do not write this):
 
 - BukkitKit generates `HelloPlugin_BukkitKit extends JavaPlugin` at compile time
 - It writes `plugin.yml` from the annotation (`name`, `version`, `main` → the generated class, `api-version`, …)
-- When the server enables the plugin, BukkitKit runs bootstrap (components, events, schedules)
+- When the server enables the plugin, BukkitKit runs bootstrap (components, events, commands, schedules)
 
 For this empty plugin there are no components yet, so bootstrap is a no-op beyond setup. Add startup logic later with `@OnEnable` on components.
 

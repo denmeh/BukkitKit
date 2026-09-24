@@ -37,7 +37,7 @@ Rules:
 
 - `public`, no parameters, return `void`
 - Not `static`
-- The enclosing class becomes managed automatically (no `@Component` required), same idea as `@OnEvent`
+- The enclosing class becomes managed automatically (no `@Component` required), same idea as `@OnEvent` / `@Command`
 
 ## Order
 
@@ -50,7 +50,7 @@ So if `PlayerManager` depends on `PlayerRepository`, the repository enables firs
 
 1. BukkitKit constructs and wires all components
 2. `@OnEnable` methods run
-3. `@Scheduled` tasks and `@OnEvent` listeners are registered
+3. `@Scheduled` tasks, `@OnEvent` listeners, and `@Command` / `@TabComplete` handlers are registered
 4. On stop: schedules/listeners cleanup, then `@OnDisable`, then unbind
 
 Put “start this subsystem” logic on the component that owns it. The `@BukkitKit` marker stays metadata-only.

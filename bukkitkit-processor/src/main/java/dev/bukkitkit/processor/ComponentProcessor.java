@@ -1,10 +1,12 @@
 package dev.bukkitkit.processor;
 
 import dev.bukkitkit.api.BukkitKit;
+import dev.bukkitkit.api.Command;
 import dev.bukkitkit.api.Component;
 import dev.bukkitkit.api.OnDisable;
 import dev.bukkitkit.api.OnEnable;
 import dev.bukkitkit.api.OnEvent;
+import dev.bukkitkit.api.TabComplete;
 import dev.bukkitkit.processor.analysis.ComponentAnalyzer;
 import dev.bukkitkit.processor.analysis.PluginAnalyzer;
 import dev.bukkitkit.processor.generate.BootstrapGenerator;
@@ -35,12 +37,15 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Discovers {@link Component} / {@link OnEvent} / {@link OnEnable} / {@link OnDisable} /
- * {@link BukkitKit} types and generates bootstrap + plugin entry sources via {@code Filer}.
+ * Discovers {@link Component} / {@link OnEvent} / {@link Command} / {@link OnEnable} /
+ * {@link OnDisable} / {@link BukkitKit} types and generates bootstrap + plugin entry sources
+ * via {@code Filer}.
  */
 @SupportedAnnotationTypes({
         "dev.bukkitkit.api.Component",
         "dev.bukkitkit.api.OnEvent",
+        "dev.bukkitkit.api.Command",
+        "dev.bukkitkit.api.TabComplete",
         "dev.bukkitkit.api.OnEnable",
         "dev.bukkitkit.api.OnDisable",
         "dev.bukkitkit.api.BukkitKit"
@@ -147,7 +152,7 @@ public final class ComponentProcessor extends AbstractProcessor {
         for (PluginModel plugin : plugins) {
             try {
                 pluginGenerator.write(plugin);
-                pluginYmlGenerator.write(plugin);
+                pluginYmlGenerator.write(plugin, ordered);
             } catch (RuntimeException | IOException ex) {
                 processingEnv.getMessager().printMessage(
                         Diagnostic.Kind.ERROR,
@@ -164,7 +169,8 @@ public final class ComponentProcessor extends AbstractProcessor {
 
     /**
      * Types managed as singletons: {@code @Component} classes plus enclosing classes of
-     * {@code @OnEvent} / {@code @OnEnable} / {@code @OnDisable} methods.
+     * {@code @OnEvent} / {@code @Command} / {@code @TabComplete} / {@code @OnEnable} /
+     * {@code @OnDisable} methods.
      */
     private Map<String, TypeElement> collectManagedTypes(
             RoundEnvironment roundEnv,
@@ -183,6 +189,8 @@ public final class ComponentProcessor extends AbstractProcessor {
         }
 
         collectMethodHostedTypes(roundEnv, pluginTypeNames, managed, OnEvent.class, "@OnEvent");
+        collectMethodHostedTypes(roundEnv, pluginTypeNames, managed, Command.class, "@Command");
+        collectMethodHostedTypes(roundEnv, pluginTypeNames, managed, TabComplete.class, "@TabComplete");
         collectMethodHostedTypes(roundEnv, pluginTypeNames, managed, OnEnable.class, "@OnEnable");
         collectMethodHostedTypes(roundEnv, pluginTypeNames, managed, OnDisable.class, "@OnDisable");
 

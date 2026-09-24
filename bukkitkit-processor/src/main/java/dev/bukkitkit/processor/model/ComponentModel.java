@@ -16,6 +16,8 @@ public record ComponentModel(
         List<WiredField> wiredFields,
         List<ScheduledMethod> scheduledMethods,
         List<EventMethod> eventMethods,
+        List<CommandMethod> commandMethods,
+        List<TabCompleteMethod> tabCompleteMethods,
         List<LifecycleMethod> onEnableMethods,
         List<LifecycleMethod> onDisableMethods,
         boolean alreadyListener
@@ -31,6 +33,10 @@ public record ComponentModel(
 
     public boolean hasEvents() {
         return !eventMethods.isEmpty();
+    }
+
+    public boolean hasCommands() {
+        return !commandMethods.isEmpty();
     }
 
     public boolean hasOnEnable() {

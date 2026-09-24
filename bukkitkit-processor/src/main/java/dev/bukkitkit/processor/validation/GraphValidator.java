@@ -1,7 +1,9 @@
 package dev.bukkitkit.processor.validation;
 
 import dev.bukkitkit.processor.builtins.BuiltInTypes;
+import dev.bukkitkit.processor.model.CommandMethod;
 import dev.bukkitkit.processor.model.ComponentModel;
+import dev.bukkitkit.processor.model.TabCompleteMethod;
 
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.RoundEnvironment;
@@ -15,6 +17,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -46,6 +49,44 @@ public final class GraphValidator {
             valid &= validateDependencies(component, componentNames, pluginTypeNames, rootTypeNames);
         }
         valid &= validateCycles(components, byName, componentNames);
+        valid &= validateCommands(components);
+        return valid;
+    }
+
+    private boolean validateCommands(List<ComponentModel> components) {
+        Map<String, CommandMethod> byName = new LinkedHashMap<>();
+        boolean valid = true;
+
+        for (ComponentModel component : components) {
+            for (CommandMethod command : component.commandMethods()) {
+                String key = command.name().toLowerCase(Locale.ROOT);
+                CommandMethod previous = byName.putIfAbsent(key, command);
+                if (previous != null) {
+                    error(command.method(),
+                            "Duplicate @Command name: " + command.name()
+                                    + " (already declared on " + previous.methodName() + ")");
+                    valid = false;
+                }
+            }
+        }
+
+        Set<String> tabSeen = new HashSet<>();
+        for (ComponentModel component : components) {
+            for (TabCompleteMethod tab : component.tabCompleteMethods()) {
+                String key = tab.commandName().toLowerCase(Locale.ROOT);
+                if (!tabSeen.add(key)) {
+                    error(tab.method(),
+                            "Duplicate @TabComplete for command: " + tab.commandName());
+                    valid = false;
+                    continue;
+                }
+                if (!byName.containsKey(key)) {
+                    error(tab.method(),
+                            "@TabComplete references unknown @Command name: " + tab.commandName());
+                    valid = false;
+                }
+            }
+        }
         return valid;
     }
 
@@ -116,7 +157,7 @@ public final class GraphValidator {
             if (rootTypeNames.contains(dep)) {
                 error(component.type(),
                         "Unresolved dependency " + dep + " (parameter/field " + i + "). "
-                                + "Declare @Component (or @OnEvent/@OnEnable/@OnDisable on the type), "
+                                + "Declare @Component (or @OnEvent/@Command/@OnEnable/@OnDisable on the type), "
                                 + "or use a built-in type (JavaPlugin, Logger, …).");
                 valid = false;
             }

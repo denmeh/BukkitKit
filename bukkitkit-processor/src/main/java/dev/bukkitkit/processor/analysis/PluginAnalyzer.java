@@ -2,8 +2,10 @@ package dev.bukkitkit.processor.analysis;
 
 import dev.bukkitkit.api.BukkitKit;
 import dev.bukkitkit.api.Component;
+import dev.bukkitkit.api.Permission;
 import dev.bukkitkit.api.Wire;
 import dev.bukkitkit.processor.model.PluginModel;
+import dev.bukkitkit.processor.model.PluginModel.PermissionModel;
 
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.ElementKind;
@@ -16,8 +18,11 @@ import javax.lang.model.util.ElementFilter;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Analyzes {@code @BukkitKit} marker classes (metadata only; no user {@code JavaPlugin}).
@@ -103,6 +108,26 @@ public final class PluginAnalyzer {
             ok = false;
         }
 
+        List<PermissionModel> permissions = new ArrayList<>();
+        Set<String> permissionNames = new HashSet<>();
+        for (Permission permission : annotation.permissions()) {
+            if (permission.name().isBlank()) {
+                error(type, "@Permission name() must not be blank");
+                ok = false;
+                continue;
+            }
+            if (!permissionNames.add(permission.name())) {
+                error(type, "Duplicate @Permission name: " + permission.name());
+                ok = false;
+                continue;
+            }
+            permissions.add(new PermissionModel(
+                    permission.name(),
+                    permission.description(),
+                    permission.defaultValue(),
+                    List.copyOf(Arrays.asList(permission.children()))));
+        }
+
         if (!ok) {
             return null;
         }
@@ -115,7 +140,15 @@ public final class PluginAnalyzer {
                 annotation.version(),
                 annotation.apiVersion(),
                 annotation.description(),
-                List.copyOf(Arrays.asList(annotation.authors())));
+                List.copyOf(Arrays.asList(annotation.authors())),
+                annotation.website(),
+                annotation.prefix(),
+                annotation.load(),
+                List.copyOf(Arrays.asList(annotation.depend())),
+                List.copyOf(Arrays.asList(annotation.softDepend())),
+                List.copyOf(Arrays.asList(annotation.loadBefore())),
+                List.copyOf(Arrays.asList(annotation.provides())),
+                List.copyOf(permissions));
     }
 
     private boolean extendsSomethingOtherThanObject(TypeElement type) {

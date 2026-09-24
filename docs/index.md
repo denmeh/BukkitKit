@@ -4,7 +4,7 @@ layout: home
 hero:
   name: BukkitKit
   text: An API for Paper plugins
-  tagline: Learn step by step — from a blank plugin to wired components, events, and schedules.
+  tagline: Learn step by step — from a blank plugin to wired components, events, schedules, and commands.
   actions:
     - theme: brand
       text: Start the guide
@@ -19,5 +19,5 @@ features:
   - title: Build in pieces
     details: Split your plugin into small components. BukkitKit connects them for you at compile time.
   - title: Less Bukkit glue
-    details: Register listeners, schedulers, and startup hooks with annotations instead of manual boilerplate.
+    details: Register listeners, commands, schedulers, and startup hooks with annotations — plugin.yml included.
 ---

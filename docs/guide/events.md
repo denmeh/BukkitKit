@@ -68,6 +68,8 @@ public void onChat(AsyncPlayerChatEvent event) {
 | Class with only `@OnEvent` | Pure listeners (join, quit, interact) |
 | `@Component` + `@OnEvent` | A service that both holds state and listens |
 
+Commands work the same way with `@Command` — see [Commands](./commands).
+
 ## Next
 
 [Lifecycle](./lifecycle) — run setup and teardown with `@OnEnable` / `@OnDisable`.

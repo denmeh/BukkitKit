@@ -85,13 +85,4 @@ When the plugin disables, BukkitKit cancels the schedules it started. You do not
 
 ## Where to go next
 
-You now have the full starter toolkit:
-
-1. `@BukkitKit` marker (+ generated `JavaPlugin` entry and `plugin.yml`)
-2. `@Component` services
-3. `@Wire` between them and built-ins
-4. `@OnEvent` for listeners
-5. `@OnEnable` / `@OnDisable` for start/stop
-6. `@Scheduled` for timers
-
-Use the [cheat sheet](./cheat-sheet) as a quick reference, and look at `bukkitkit-demo` in the repository for a complete example that ties these together.
+[Commands](./commands) — register `/commands` with `@Command` instead of `plugin.yml` + `setExecutor`.

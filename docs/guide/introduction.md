@@ -2,14 +2,14 @@
 
 BukkitKit is a small API for writing [Paper](https://papermc.io/) (Minecraft) plugins.
 
-If you have written a plugin before, you know the usual pattern: extend `JavaPlugin`, register listeners by hand, schedule tasks with `BukkitScheduler`, and pass `this` (the plugin) around everywhere. That works, but it gets messy as the plugin grows.
+If you have written a plugin before, you know the usual pattern: extend `JavaPlugin`, register listeners and commands by hand, schedule tasks with `BukkitScheduler`, and pass `this` (the plugin) around everywhere. That works, but it gets messy as the plugin grows.
 
 BukkitKit gives you a clearer way to structure the same work:
 
-1. Mark a plain class with `@BukkitKit` (name, version, api version — no `JavaPlugin` or `plugin.yml` by hand)
+1. Mark a plain class with `@BukkitKit` (name, version, api version, and optional depend / permissions / … — no `JavaPlugin` or `plugin.yml` by hand)
 2. Put game logic in small `@Component` classes
 3. Ask for what you need with `@Wire`
-4. Optionally use `@OnEvent`, `@OnEnable` / `@OnDisable`, and `@Scheduled` for listeners, startup hooks, and repeating work
+4. Optionally use `@OnEvent`, `@Command`, `@OnEnable` / `@OnDisable`, and `@Scheduled` for listeners, commands, startup hooks, and repeating work
 
 You still write normal Paper/Bukkit code. BukkitKit does not replace the Minecraft API — it organizes how your classes connect.
 
@@ -31,6 +31,8 @@ Follow the pages in order. Each step builds on the last:
 | [Events](./events) | Handle joins, chats, etc. with `@OnEvent` |
 | [Lifecycle](./lifecycle) | Run code on enable / disable |
 | [Scheduling](./scheduling) | Repeat work with `@Scheduled` |
+| [Commands](./commands) | Register `/commands` with `@Command` |
+| [Plugin metadata](./plugin-yml) | Depend, permissions, and the rest of `plugin.yml` |
 
 When you need a quick reminder later, use the [cheat sheet](./cheat-sheet).
 

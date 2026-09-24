@@ -79,6 +79,8 @@ Players install one JAR. Shade the BukkitKit runtime modules into your plugin an
 
 The `AppendingTransformer` line matters: without it, the server may not find BukkitKit’s generated bootstrap.
 
+Do **not** ship your own `plugin.yml` — BukkitKit generates it from `@BukkitKit` and `@Command`. If you already have one in `src/main/resources`, remove it (or it may conflict with the generated file depending on packaging order).
+
 ## 4. (Optional) Try the demo in this repo
 
 If you cloned BukkitKit itself:

@@ -74,7 +74,7 @@ Or inject `Logger` when you only need logging.
 
 | Do | Don’t |
 |----|--------|
-| `@Wire` on instance fields of components | `@Wire` on the `@BukkitKit` marker |
+| `@Wire` on instance fields of components (including `@OnEvent` / `@Command` hosts) | `@Wire` on the `@BukkitKit` marker |
 | `@Wire` `JavaPlugin` / `Logger` / other built-ins | `@Wire` the `@BukkitKit` marker type |
 | Instance `@Wire` fields only | `@Wire` on `static` or `final` fields |
 | Public no-arg constructor on components that use `@Wire` | Hide the only constructor or make it package-private only |

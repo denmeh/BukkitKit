@@ -15,13 +15,22 @@ import java.lang.annotation.Target;
  * @BukkitKit(
  *     name = "Hello",
  *     version = "1.0.0",
- *     apiVersion = "1.21"
+ *     apiVersion = "1.21",
+ *     description = "Says hello",
+ *     authors = {"denmeh"},
+ *     website = "https://example.com",
+ *     depend = {"Vault"},
+ *     softDepend = {"WorldGuard"},
+ *     permissions = {
+ *         @Permission(name = "hello.use", description = "Use /hello", defaultValue = PermissionDefault.TRUE)
+ *     }
  * )
  * public final class HelloPlugin {
  * }
  * }</pre>
  *
  * Put startup logic on components with {@link OnEnable} / {@link OnDisable}.
+ * Declare commands with {@link Command} on component methods.
  */
 @Documented
 @Target(ElementType.TYPE)
@@ -42,4 +51,31 @@ public @interface BukkitKit {
 
     /** {@code plugin.yml} {@code authors}; omitted when empty. */
     String[] authors() default {};
+
+    /** {@code plugin.yml} {@code website}; omitted when empty. */
+    String website() default "";
+
+    /** {@code plugin.yml} {@code prefix} (log prefix); omitted when empty. */
+    String prefix() default "";
+
+    /**
+     * {@code plugin.yml} {@code load}. {@link PluginLoad#POSTWORLD} is the Bukkit default
+     * and is omitted from the file.
+     */
+    PluginLoad load() default PluginLoad.POSTWORLD;
+
+    /** {@code plugin.yml} {@code depend}; omitted when empty. */
+    String[] depend() default {};
+
+    /** {@code plugin.yml} {@code softdepend}; omitted when empty. */
+    String[] softDepend() default {};
+
+    /** {@code plugin.yml} {@code loadbefore}; omitted when empty. */
+    String[] loadBefore() default {};
+
+    /** {@code plugin.yml} {@code provides}; omitted when empty. */
+    String[] provides() default {};
+
+    /** {@code plugin.yml} {@code permissions}; omitted when empty. */
+    Permission[] permissions() default {};
 }

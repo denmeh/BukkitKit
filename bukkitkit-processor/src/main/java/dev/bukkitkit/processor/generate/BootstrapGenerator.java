@@ -2,12 +2,14 @@ package dev.bukkitkit.processor.generate;
 
 import dev.bukkitkit.api.BukkitKitSymbols;
 import dev.bukkitkit.processor.builtins.BuiltInTypes;
+import dev.bukkitkit.processor.model.CommandMethod;
 import dev.bukkitkit.processor.model.ComponentModel;
 import dev.bukkitkit.processor.model.ComponentModel.InjectionKind;
 import dev.bukkitkit.processor.model.ComponentModel.WiredField;
 import dev.bukkitkit.processor.model.EventMethod;
 import dev.bukkitkit.processor.model.LifecycleMethod;
 import dev.bukkitkit.processor.model.ScheduledMethod;
+import dev.bukkitkit.processor.model.TabCompleteMethod;
 
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.CodeBlock;
@@ -25,6 +27,7 @@ import java.io.Writer;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -47,6 +50,8 @@ public final class BootstrapGenerator {
             ClassName.get("org.bukkit.event", "HandlerList");
     private static final ClassName BUKKIT_LISTENER =
             ClassName.get("org.bukkit.event", "Listener");
+    private static final ClassName PLUGIN_COMMAND =
+            ClassName.get("org.bukkit.command", "PluginCommand");
 
     private final Filer filer;
 
@@ -158,7 +163,110 @@ public final class BootstrapGenerator {
             }
         }
 
+        Map<String, TabBinding> tabsByCommand = indexTabCompletes(ordered, instanceFields);
+        for (ComponentModel component : ordered) {
+            String field = instanceFields.get(component.typeName());
+            for (CommandMethod command : component.commandMethods()) {
+                emitCommand(method, field, command, tabsByCommand.get(command.name().toLowerCase(Locale.ROOT)));
+            }
+        }
+
         return method.build();
+    }
+
+    private record TabBinding(String instanceField, TabCompleteMethod method) {
+    }
+
+    private static Map<String, TabBinding> indexTabCompletes(
+            List<ComponentModel> ordered,
+            Map<String, String> instanceFields) {
+        Map<String, TabBinding> tabs = new HashMap<>();
+        for (ComponentModel component : ordered) {
+            String field = instanceFields.get(component.typeName());
+            for (TabCompleteMethod tab : component.tabCompleteMethods()) {
+                tabs.put(tab.commandName().toLowerCase(Locale.ROOT), new TabBinding(field, tab));
+            }
+        }
+        return tabs;
+    }
+
+    private void emitCommand(
+            MethodSpec.Builder method,
+            String instanceField,
+            CommandMethod command,
+            TabBinding tab) {
+        String cmdVar = sanitizeIdentifier(command.name()) + "Command";
+        method.addStatement(
+                "$T $L = s.javaPlugin().getCommand($S)",
+                PLUGIN_COMMAND,
+                cmdVar,
+                command.name());
+        method.beginControlFlow("if ($L == null)", cmdVar);
+        method.addStatement(
+                "throw new $T($S)",
+                BUKKIT_KIT_EXCEPTION,
+                "BukkitKit: command '" + command.name()
+                        + "' missing from plugin.yml (processor bug or shade issue)");
+        method.endControlFlow();
+
+        CodeBlock invoke = commandInvoke(instanceField, command);
+        if (command.booleanReturn()) {
+            method.addStatement(
+                    "$L.setExecutor((sender, command, label, args) -> $L)",
+                    cmdVar,
+                    invoke);
+        } else {
+            method.addStatement(
+                    "$L.setExecutor((sender, command, label, args) -> { $L; return true; })",
+                    cmdVar,
+                    invoke);
+        }
+
+        if (tab != null) {
+            CodeBlock tabInvoke = tabInvoke(tab.instanceField(), tab.method());
+            method.addStatement(
+                    "$L.setTabCompleter((sender, command, alias, args) -> $L)",
+                    cmdVar,
+                    tabInvoke);
+        }
+    }
+
+    private static CodeBlock commandInvoke(String instanceField, CommandMethod command) {
+        return switch (command.signature()) {
+            case SENDER -> CodeBlock.of("this.$L.$L(sender)", instanceField, command.methodName());
+            case SENDER_ARGS -> CodeBlock.of(
+                    "this.$L.$L(sender, args)", instanceField, command.methodName());
+            case SENDER_LABEL_ARGS -> CodeBlock.of(
+                    "this.$L.$L(sender, label, args)", instanceField, command.methodName());
+        };
+    }
+
+    private static CodeBlock tabInvoke(String instanceField, TabCompleteMethod tab) {
+        return switch (tab.signature()) {
+            case SENDER_ARGS -> CodeBlock.of(
+                    "this.$L.$L(sender, args)", instanceField, tab.methodName());
+            case SENDER_ALIAS_ARGS -> CodeBlock.of(
+                    "this.$L.$L(sender, alias, args)", instanceField, tab.methodName());
+        };
+    }
+
+    private static String sanitizeIdentifier(String name) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if ((c >= 'a' && c <= 'z')
+                    || (c >= 'A' && c <= 'Z')
+                    || (c >= '0' && c <= '9')
+                    || c == '_') {
+                sb.append(c);
+            } else {
+                sb.append('_');
+            }
+        }
+        if (sb.isEmpty() || Character.isDigit(sb.charAt(0))) {
+            sb.insert(0, 'c');
+        }
+        return sb.toString();
     }
 
     private void emitEvent(

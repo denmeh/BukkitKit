@@ -32,6 +32,8 @@ export default defineConfig({
           { text: '5. Events', link: '/guide/events' },
           { text: '6. Lifecycle', link: '/guide/lifecycle' },
           { text: '7. Scheduled tasks', link: '/guide/scheduling' },
+          { text: '8. Commands', link: '/guide/commands' },
+          { text: '9. Plugin metadata', link: '/guide/plugin-yml' },
         ],
       },
       {
