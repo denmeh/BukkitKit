@@ -1,10 +1,11 @@
 package dev.bukkitkit.processor.analysis;
 
+import dev.bukkitkit.api.Scheduled;
 import dev.bukkitkit.api.Wire;
-import dev.bukkitkit.processor.builtins.BuiltInTypes;
 import dev.bukkitkit.processor.model.ComponentModel;
 import dev.bukkitkit.processor.model.ComponentModel.InjectionKind;
 import dev.bukkitkit.processor.model.ComponentModel.WiredField;
+import dev.bukkitkit.processor.model.ScheduledMethod;
 
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.ElementKind;
@@ -22,7 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Validates and extracts dependency metadata from a {@code @Component} type.
+ * Validates and extracts dependency / schedule metadata from a {@code @Component} type.
  */
 public final class ComponentAnalyzer {
 
@@ -53,6 +54,7 @@ public final class ComponentAnalyzer {
         }
 
         List<WiredField> wiredFields = readWiredFields(type);
+        List<ScheduledMethod> scheduledMethods = readScheduledMethods(type);
         List<ExecutableElement> publicConstructors = ElementFilter.constructorsIn(type.getEnclosedElements())
                 .stream()
                 .filter(ctor -> ctor.getModifiers().contains(Modifier.PUBLIC))
@@ -84,7 +86,8 @@ public final class ComponentAnalyzer {
                     elements.getPackageOf(type).getQualifiedName().toString(),
                     InjectionKind.FIELD,
                     List.copyOf(dependencies),
-                    List.copyOf(wiredFields));
+                    List.copyOf(wiredFields),
+                    List.copyOf(scheduledMethods));
         }
 
         List<String> dependencies = new ArrayList<>();
@@ -105,7 +108,8 @@ public final class ComponentAnalyzer {
                 elements.getPackageOf(type).getQualifiedName().toString(),
                 InjectionKind.CONSTRUCTOR,
                 List.copyOf(dependencies),
-                List.of());
+                List.of(),
+                List.copyOf(scheduledMethods));
     }
 
     private List<WiredField> readWiredFields(TypeElement type) {
@@ -133,6 +137,55 @@ public final class ComponentAnalyzer {
                     fieldTypeElement.getQualifiedName().toString()));
         }
         return fields;
+    }
+
+    private List<ScheduledMethod> readScheduledMethods(TypeElement type) {
+        List<ScheduledMethod> methods = new ArrayList<>();
+        for (ExecutableElement method : ElementFilter.methodsIn(type.getEnclosedElements())) {
+            Scheduled annotation = method.getAnnotation(Scheduled.class);
+            if (annotation == null) {
+                continue;
+            }
+            if (method.getModifiers().contains(Modifier.STATIC)) {
+                error(method, "@Scheduled method must not be static");
+                continue;
+            }
+            if (!method.getModifiers().contains(Modifier.PUBLIC)) {
+                error(method, "@Scheduled method must be public");
+                continue;
+            }
+            if (!method.getParameters().isEmpty()) {
+                error(method, "@Scheduled method must not take parameters");
+                continue;
+            }
+            TypeMirror returnType = method.getReturnType();
+            boolean booleanReturn = returnType.getKind() == TypeKind.BOOLEAN;
+            if (returnType.getKind() != TypeKind.VOID && !booleanReturn) {
+                error(method, "@Scheduled method must return void or boolean");
+                continue;
+            }
+            if (annotation.every() == 0) {
+                error(method, "@Scheduled every() must be > 0 or -1 (one-shot)");
+                continue;
+            }
+            if (annotation.every() < -1) {
+                error(method, "@Scheduled every() must be > 0 or -1 (one-shot)");
+                continue;
+            }
+            if (annotation.delay() < 0) {
+                error(method, "@Scheduled delay() must be >= 0");
+                continue;
+            }
+            methods.add(new ScheduledMethod(
+                    method,
+                    method.getSimpleName().toString(),
+                    annotation.every(),
+                    annotation.delay(),
+                    annotation.unit(),
+                    annotation.async(),
+                    booleanReturn));
+        }
+        return methods;
     }
 
     private void error(javax.lang.model.element.Element element, String message) {

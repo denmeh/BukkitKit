@@ -15,7 +15,8 @@ public final class BuiltInTypes {
             "java.util.logging.Logger", "logger",
             "org.bukkit.plugin.PluginManager", "pluginManager",
             "org.bukkit.plugin.ServicesManager", "servicesManager",
-            "org.bukkit.scheduler.BukkitScheduler", "scheduler"
+            "org.bukkit.scheduler.BukkitScheduler", "scheduler",
+            "dev.bukkitkit.paper.KitScheduler", "kitScheduler"
     );
 
     private BuiltInTypes() {

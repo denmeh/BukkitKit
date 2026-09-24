@@ -13,7 +13,8 @@ public record ComponentModel(
         String packageName,
         InjectionKind kind,
         List<String> dependencies,
-        List<WiredField> wiredFields
+        List<WiredField> wiredFields,
+        List<ScheduledMethod> scheduledMethods
 ) {
 
     public enum InjectionKind {

@@ -21,7 +21,8 @@ public record PlatformServices(
         Logger logger,
         PluginManager pluginManager,
         ServicesManager servicesManager,
-        BukkitScheduler scheduler
+        BukkitScheduler scheduler,
+        KitScheduler kitScheduler
 ) {
 
     public static PlatformServices from(JavaPlugin plugin) {
@@ -33,7 +34,8 @@ public record PlatformServices(
                 plugin.getLogger(),
                 server.getPluginManager(),
                 server.getServicesManager(),
-                server.getScheduler()
+                server.getScheduler(),
+                new KitScheduler(plugin)
         );
     }
 

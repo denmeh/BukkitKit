@@ -5,6 +5,7 @@ import dev.bukkitkit.processor.builtins.BuiltInTypes;
 import dev.bukkitkit.processor.model.ComponentModel;
 import dev.bukkitkit.processor.model.ComponentModel.InjectionKind;
 import dev.bukkitkit.processor.model.ComponentModel.WiredField;
+import dev.bukkitkit.processor.model.ScheduledMethod;
 
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.CodeBlock;
@@ -30,6 +31,10 @@ public final class BootstrapGenerator {
             ClassName.get("dev.bukkitkit.paper", "KitBootstrap");
     private static final ClassName PLATFORM_SERVICES =
             ClassName.get("dev.bukkitkit.paper", "PlatformServices");
+    private static final ClassName LIFECYCLES =
+            ClassName.get("dev.bukkitkit.api", "Lifecycles");
+    private static final ClassName BUKKIT_KIT_EXCEPTION =
+            ClassName.get("dev.bukkitkit.api", "BukkitKitException");
 
     private final Filer filer;
     private Set<String> pluginTypeNames = Set.of();
@@ -91,7 +96,76 @@ public final class BootstrapGenerator {
                         constructorArgs(component));
             }
         }
+
+        for (ComponentModel component : ordered) {
+            ClassName type = ClassName.bestGuess(component.typeName());
+            method.beginControlFlow("try");
+            method.addStatement(
+                    "$T.enable($T.$L)",
+                    LIFECYCLES,
+                    type,
+                    BukkitKitSymbols.INSTANCE_FIELD);
+            method.nextControlFlow("catch ($T ex)", RuntimeException.class);
+            method.addStatement(
+                    "throw new $T($S, ex)",
+                    BUKKIT_KIT_EXCEPTION,
+                    "BukkitKit: onEnable failed for " + component.typeName());
+            method.endControlFlow();
+        }
+
+        for (ComponentModel component : ordered) {
+            ClassName type = ClassName.bestGuess(component.typeName());
+            for (ScheduledMethod scheduled : component.scheduledMethods()) {
+                emitSchedule(method, type, scheduled);
+            }
+        }
+
         return method.build();
+    }
+
+    private void emitSchedule(MethodSpec.Builder method, ClassName type, ScheduledMethod scheduled) {
+        long delayTicks = scheduled.delayTicks();
+        boolean async = scheduled.async();
+        String methodName = scheduled.methodName();
+
+        if (scheduled.repeating()) {
+            long periodTicks = scheduled.periodTicks();
+            if (scheduled.booleanReturn()) {
+                method.addStatement(
+                        "s.kitScheduler().runRepeating($LL, $LL, $L, () -> $T.$L.$L())",
+                        delayTicks,
+                        periodTicks,
+                        async,
+                        type,
+                        BukkitKitSymbols.INSTANCE_FIELD,
+                        methodName);
+            } else {
+                method.addStatement(
+                        "s.kitScheduler().runRepeating($LL, $LL, $L, () -> { $T.$L.$L(); return true; })",
+                        delayTicks,
+                        periodTicks,
+                        async,
+                        type,
+                        BukkitKitSymbols.INSTANCE_FIELD,
+                        methodName);
+            }
+        } else if (scheduled.booleanReturn()) {
+            method.addStatement(
+                    "s.kitScheduler().runLater($LL, $L, () -> { $T.$L.$L(); })",
+                    delayTicks,
+                    async,
+                    type,
+                    BukkitKitSymbols.INSTANCE_FIELD,
+                    methodName);
+        } else {
+            method.addStatement(
+                    "s.kitScheduler().runLater($LL, $L, () -> $T.$L.$L())",
+                    delayTicks,
+                    async,
+                    type,
+                    BukkitKitSymbols.INSTANCE_FIELD,
+                    methodName);
+        }
     }
 
     private CodeBlock constructorArgs(ComponentModel component) {
@@ -131,6 +205,19 @@ public final class BootstrapGenerator {
         MethodSpec.Builder method = MethodSpec.methodBuilder("stop")
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PUBLIC);
+
+        for (int i = ordered.size() - 1; i >= 0; i--) {
+            ComponentModel component = ordered.get(i);
+            ClassName type = ClassName.bestGuess(component.typeName());
+            method.beginControlFlow("try");
+            method.addStatement(
+                    "$T.disable($T.$L)",
+                    LIFECYCLES,
+                    type,
+                    BukkitKitSymbols.INSTANCE_FIELD);
+            method.nextControlFlow("catch ($T ignored)", RuntimeException.class);
+            method.endControlFlow();
+        }
 
         for (int i = ordered.size() - 1; i >= 0; i--) {
             ComponentModel component = ordered.get(i);

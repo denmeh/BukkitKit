@@ -102,6 +102,93 @@ class ComponentProcessorTest {
     }
 
     @Test
+    void generatesLifecycleAndScheduledCalls() {
+        JavaFileObject service = JavaFileObjects.forSourceLines(
+                "demo.Ticker",
+                "package demo;",
+                "import dev.bukkitkit.api.Component;",
+                "import dev.bukkitkit.api.Lifecycle;",
+                "import dev.bukkitkit.api.ScheduleUnit;",
+                "import dev.bukkitkit.api.Scheduled;",
+                "@Component",
+                "public class Ticker implements Lifecycle {",
+                "  public Ticker() {}",
+                "  @Override public void onEnable() {}",
+                "  @Override public void onDisable() {}",
+                "  @Scheduled(every = 5, unit = ScheduleUnit.SECONDS)",
+                "  public boolean tick() { return true; }",
+                "  @Scheduled(every = -1, delay = 1, unit = ScheduleUnit.TICKS)",
+                "  public void once() {}",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(service);
+
+        assertThat(compilation).succeeded();
+        assertThat(compilation)
+                .generatedSourceFile("demo.BukkitKitInit")
+                .contentsAsUtf8String()
+                .contains("Lifecycles.enable");
+        assertThat(compilation)
+                .generatedSourceFile("demo.BukkitKitInit")
+                .contentsAsUtf8String()
+                .contains("Lifecycles.disable");
+        assertThat(compilation)
+                .generatedSourceFile("demo.BukkitKitInit")
+                .contentsAsUtf8String()
+                .contains("kitScheduler().runRepeating");
+        assertThat(compilation)
+                .generatedSourceFile("demo.BukkitKitInit")
+                .contentsAsUtf8String()
+                .contains("kitScheduler().runLater");
+    }
+
+    @Test
+    void failsOnInvalidScheduledReturnType() {
+        JavaFileObject source = JavaFileObjects.forSourceLines(
+                "demo.BadSchedule",
+                "package demo;",
+                "import dev.bukkitkit.api.Component;",
+                "import dev.bukkitkit.api.Scheduled;",
+                "@Component",
+                "public class BadSchedule {",
+                "  public BadSchedule() {}",
+                "  @Scheduled(every = 1)",
+                "  public int tick() { return 0; }",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(source);
+
+        assertThat(compilation).failed();
+        assertThat(compilation).hadErrorContaining("void or boolean");
+    }
+
+    @Test
+    void failsOnNonPublicScheduledMethod() {
+        JavaFileObject source = JavaFileObjects.forSourceLines(
+                "demo.HiddenSchedule",
+                "package demo;",
+                "import dev.bukkitkit.api.Component;",
+                "import dev.bukkitkit.api.Scheduled;",
+                "@Component",
+                "public class HiddenSchedule {",
+                "  public HiddenSchedule() {}",
+                "  @Scheduled(every = 1)",
+                "  void tick() {}",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(source);
+
+        assertThat(compilation).failed();
+        assertThat(compilation).hadErrorContaining("must be public");
+    }
+
+    @Test
     void failsOnUnresolvedLocalDependency() {
         JavaFileObject missing = JavaFileObjects.forSourceLines(
                 "demo.NotAComponent",

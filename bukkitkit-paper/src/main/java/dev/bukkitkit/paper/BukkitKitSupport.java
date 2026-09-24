@@ -15,7 +15,10 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class BukkitKitSupport {
 
-    private static final Map<JavaPlugin, List<KitBootstrap>> ACTIVE = new ConcurrentHashMap<>();
+    private record Session(List<KitBootstrap> bootstraps, KitScheduler kitScheduler) {
+    }
+
+    private static final Map<JavaPlugin, Session> ACTIVE = new ConcurrentHashMap<>();
 
     private BukkitKitSupport() {
     }
@@ -37,23 +40,31 @@ public final class BukkitKitSupport {
                 bootstrap.start(services);
                 started.add(bootstrap);
             }
-            ACTIVE.put(plugin, List.copyOf(started));
+            ACTIVE.put(plugin, new Session(List.copyOf(started), services.kitScheduler()));
             return services;
         } catch (RuntimeException ex) {
+            services.kitScheduler().cancelAll();
             stopAll(started);
+            if (ex instanceof BukkitKitException) {
+                throw ex;
+            }
             throw new BukkitKitException("BukkitKit: bootstrap failed for " + plugin.getName(), ex);
         }
     }
 
     /**
-     * Stops bootstraps for {@code plugin}. Called at the end of {@code onDisable}.
+     * Stops schedules then bootstraps for {@code plugin}. Called at the end of {@code onDisable}.
      */
     public static void disable(JavaPlugin plugin) {
-        List<KitBootstrap> bootstraps = ACTIVE.remove(plugin);
-        if (bootstraps == null) {
+        Session session = ACTIVE.remove(plugin);
+        if (session == null) {
             return;
         }
-        stopAll(bootstraps);
+        try {
+            session.kitScheduler().cancelAll();
+        } finally {
+            stopAll(session.bootstraps());
+        }
     }
 
     private static void stopAll(List<KitBootstrap> bootstraps) {
