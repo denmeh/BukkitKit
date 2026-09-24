@@ -34,7 +34,9 @@ import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Validates and extracts dependency / schedule / event / command / config metadata from a managed type.
@@ -106,27 +108,7 @@ public final class ComponentAnalyzer {
             return null;
         }
 
-        boolean anyField = false;
-        for (VariableElement field : ElementFilter.fieldsIn(type.getEnclosedElements())) {
-            if (field.getModifiers().contains(Modifier.STATIC)) {
-                continue;
-            }
-            if (!field.getModifiers().contains(Modifier.PUBLIC)) {
-                continue;
-            }
-            if (field.getModifiers().contains(Modifier.FINAL)) {
-                error(field, "@Config fields must not be final (BukkitKit writes loaded values into them)");
-                return null;
-            }
-            if (!isSupportedConfigType(field.asType())) {
-                error(field, "Unsupported @Config field type (use boolean/Boolean, int/Integer, "
-                        + "long/Long, double/Double, float/Float, String, or List<String>)");
-                return null;
-            }
-            anyField = true;
-        }
-        if (!anyField) {
-            error(type, "@Config class needs at least one public non-static non-final field");
+        if (!validateConfigFields(type, new HashSet<>())) {
             return null;
         }
 
@@ -253,9 +235,66 @@ public final class ComponentAnalyzer {
         return true;
     }
 
-    private boolean isSupportedConfigType(TypeMirror mirror) {
+    /**
+     * Validates public config fields on {@code type} (and nested POJO types recursively).
+     */
+    private boolean validateConfigFields(TypeElement type, Set<String> visiting) {
+        String typeName = type.getQualifiedName().toString();
+        if (!visiting.add(typeName)) {
+            error(type, "Cyclic nested @Config type: " + typeName);
+            return false;
+        }
+        try {
+            boolean anyField = false;
+            for (VariableElement field : ElementFilter.fieldsIn(type.getEnclosedElements())) {
+                if (field.getModifiers().contains(Modifier.STATIC)) {
+                    continue;
+                }
+                if (!field.getModifiers().contains(Modifier.PUBLIC)) {
+                    continue;
+                }
+                if (field.getModifiers().contains(Modifier.FINAL)) {
+                    error(field, "@Config fields must not be final (BukkitKit writes loaded values into them)");
+                    return false;
+                }
+                ConfigTypeSupport support = classifyConfigType(field.asType(), field, visiting);
+                if (support == ConfigTypeSupport.UNSUPPORTED) {
+                    error(field, "Unsupported @Config field type (use boolean/Boolean, int/Integer, "
+                            + "long/Long, double/Double, float/Float, String, List<String>, or a nested "
+                            + "public class with supported fields)");
+                    return false;
+                }
+                if (support == ConfigTypeSupport.INVALID) {
+                    return false;
+                }
+                anyField = true;
+            }
+            if (!anyField) {
+                error(type, "Config type needs at least one public non-static non-final field: "
+                        + typeName);
+                return false;
+            }
+            return true;
+        } finally {
+            visiting.remove(typeName);
+        }
+    }
+
+    private enum ConfigTypeSupport {
+        /** Leaf or valid nested type. */
+        OK,
+        /** Not a supported config shape (caller should report generic unsupported). */
+        UNSUPPORTED,
+        /** Nested candidate failed with a specific error already reported. */
+        INVALID
+    }
+
+    private ConfigTypeSupport classifyConfigType(
+            TypeMirror mirror,
+            VariableElement field,
+            Set<String> visiting) {
         return switch (mirror.getKind()) {
-            case BOOLEAN, INT, LONG, DOUBLE, FLOAT -> true;
+            case BOOLEAN, INT, LONG, DOUBLE, FLOAT -> ConfigTypeSupport.OK;
             case DECLARED -> {
                 TypeElement element = (TypeElement) ((DeclaredType) mirror).asElement();
                 String name = element.getQualifiedName().toString();
@@ -264,13 +303,67 @@ public final class ComponentAnalyzer {
                         || INTEGER.equals(name)
                         || LONG.equals(name)
                         || DOUBLE.equals(name)
-                        || FLOAT.equals(name)) {
-                    yield true;
+                        || FLOAT.equals(name)
+                        || isStringListType(mirror)) {
+                    yield ConfigTypeSupport.OK;
                 }
-                yield isStringListType(mirror);
+                yield classifyNestedConfigType(element, field, visiting);
             }
-            default -> false;
+            default -> ConfigTypeSupport.UNSUPPORTED;
         };
+    }
+
+    private ConfigTypeSupport classifyNestedConfigType(
+            TypeElement nested,
+            VariableElement field,
+            Set<String> visiting) {
+        if (nested.getAnnotation(Config.class) != null) {
+            error(field, "Nested @Config field must not be another @Config type "
+                    + "(use a plain class for YAML sections, or @Wire a separate @Config)");
+            return ConfigTypeSupport.INVALID;
+        }
+        if (nested.getAnnotation(Component.class) != null) {
+            error(field, "Nested @Config field must not be a @Component");
+            return ConfigTypeSupport.INVALID;
+        }
+        if (nested.getKind() != ElementKind.CLASS) {
+            return ConfigTypeSupport.UNSUPPORTED;
+        }
+        if (nested.getModifiers().contains(Modifier.ABSTRACT)) {
+            error(field, "Nested @Config type must not be abstract: " + nested.getQualifiedName());
+            return ConfigTypeSupport.INVALID;
+        }
+        if (!nested.getModifiers().contains(Modifier.PUBLIC)) {
+            error(field, "Nested @Config type must be public: " + nested.getQualifiedName());
+            return ConfigTypeSupport.INVALID;
+        }
+        if (nested.getNestingKind().isNested() && !nested.getModifiers().contains(Modifier.STATIC)) {
+            error(field, "Nested @Config type must be static (not an inner class): "
+                    + nested.getQualifiedName());
+            return ConfigTypeSupport.INVALID;
+        }
+        if (hasWireFields(nested) || hasNonConfigHooks(nested)) {
+            error(field, "Nested @Config type must be data-only (no @Wire, events, commands, "
+                    + "schedules, or lifecycle): " + nested.getQualifiedName());
+            return ConfigTypeSupport.INVALID;
+        }
+
+        List<ExecutableElement> publicConstructors = ElementFilter.constructorsIn(nested.getEnclosedElements())
+                .stream()
+                .filter(ctor -> ctor.getModifiers().contains(Modifier.PUBLIC))
+                .toList();
+        boolean hasPublicNoArg = publicConstructors.isEmpty()
+                || publicConstructors.stream().anyMatch(ctor -> ctor.getParameters().isEmpty());
+        if (!hasPublicNoArg) {
+            error(field, "Nested @Config type needs a public no-arg constructor: "
+                    + nested.getQualifiedName());
+            return ConfigTypeSupport.INVALID;
+        }
+
+        if (!validateConfigFields(nested, visiting)) {
+            return ConfigTypeSupport.INVALID;
+        }
+        return ConfigTypeSupport.OK;
     }
 
     private static boolean isSafeConfigFile(String file) {

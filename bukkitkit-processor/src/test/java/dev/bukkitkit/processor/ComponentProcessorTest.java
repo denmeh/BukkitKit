@@ -751,6 +751,83 @@ class ComponentProcessorTest {
     }
 
     @Test
+    void acceptsNestedConfigTypes() {
+        JavaFileObject source = JavaFileObjects.forSourceLines(
+                "demo.DemoConfig",
+                "package demo;",
+                "import dev.bukkitkit.api.Config;",
+                "@Config",
+                "public class DemoConfig {",
+                "  public String name = \"demo\";",
+                "  public Database database = new Database();",
+                "  public DemoConfig() {}",
+                "  public static class Database {",
+                "    public String host = \"localhost\";",
+                "    public int port = 3306;",
+                "  }",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(source);
+
+        assertThat(compilation).succeeded();
+    }
+
+    @Test
+    void failsWhenNestedConfigIsAnotherConfig() {
+        JavaFileObject nested = JavaFileObjects.forSourceLines(
+                "demo.Other",
+                "package demo;",
+                "import dev.bukkitkit.api.Config;",
+                "@Config(file = \"other.yml\")",
+                "public class Other {",
+                "  public int value = 1;",
+                "  public Other() {}",
+                "}");
+        JavaFileObject root = JavaFileObjects.forSourceLines(
+                "demo.Root",
+                "package demo;",
+                "import dev.bukkitkit.api.Config;",
+                "@Config",
+                "public class Root {",
+                "  public Other other = new Other();",
+                "  public Root() {}",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(nested, root);
+
+        assertThat(compilation).failed();
+        assertThat(compilation).hadErrorContaining("must not be another @Config type");
+    }
+
+    @Test
+    void failsWhenNestedConfigTypeIsCyclic() {
+        JavaFileObject source = JavaFileObjects.forSourceLines(
+                "demo.DemoConfig",
+                "package demo;",
+                "import dev.bukkitkit.api.Config;",
+                "@Config",
+                "public class DemoConfig {",
+                "  public Node root = new Node();",
+                "  public DemoConfig() {}",
+                "  public static class Node {",
+                "    public String name = \"x\";",
+                "    public Node child;",
+                "  }",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(source);
+
+        assertThat(compilation).failed();
+        assertThat(compilation).hadErrorContaining("Cyclic nested @Config type");
+    }
+
+    @Test
     void failsOnUnsafeConfigFilePath() {
         JavaFileObject source = JavaFileObjects.forSourceLines(
                 "demo.Broken",

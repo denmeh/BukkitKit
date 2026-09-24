@@ -19,13 +19,19 @@ import java.lang.annotation.Target;
  * public final class DemoConfig {
  *     public String welcomeMessage = "Welcome!";
  *     public boolean joinMessageEnabled = true;
- *     public int maxHomes = 3;
+ *     public Database database = new Database();
+ *
+ *     public static final class Database {
+ *         public String host = "localhost";
+ *         public int port = 3306;
+ *     }
  * }
  * }</pre>
  *
- * Field names become YAML keys. Supported types: {@code boolean}/{@code Boolean},
- * {@code int}/{@code Integer}, {@code long}/{@code Long}, {@code double}/{@code Double},
- * {@code float}/{@code Float}, {@code String}, and {@code List<String>}.
+ * Field names become YAML keys. Nested public classes become YAML sections.
+ * Supported leaf types: {@code boolean}/{@code Boolean}, {@code int}/{@code Integer},
+ * {@code long}/{@code Long}, {@code double}/{@code Double}, {@code float}/{@code Float},
+ * {@code String}, and {@code List<String>}.
  * <p>
  * Do not mix with {@link Component}, {@link Wire}, lifecycle, events, commands, or
  * schedules — a config class is data only.

@@ -30,8 +30,17 @@ public final class HelloConfig {
     public boolean joinMessageEnabled = true;
     public int maxHomes = 3;
     public List<String> motdLines = List.of("Have fun!");
+    public Database database = new Database();
 
     public HelloConfig() {
+    }
+
+    public static final class Database {
+        public String host = "localhost";
+        public int port = 3306;
+
+        public Database() {
+        }
     }
 }
 ```
@@ -74,8 +83,16 @@ joinMessageEnabled: true
 maxHomes: 3
 motdLines:
   - Have fun!
+database:
+  host: localhost
+  port: 3306
 ```
 
+## Nested sections
+
+A public field whose type is another public class (static nested or top-level) becomes a YAML section. Nested types follow the same field rules as the root `@Config` class: public non-`final` fields, supported leaf types, and a public no-arg constructor.
+
+You can nest sections arbitrarily deep. Do **not** put another `@Config` type as a field — use a plain class for sections, or `@Wire` a separate `@Config` if you want a second file.
 ## How bind works
 
 At enable, generated bootstrap does roughly:
@@ -99,8 +116,10 @@ There is no hot-reload API yet — restart (or re-enable) the plugin to re-read 
 - Public class, public no-arg constructor
 - At least one **public**, non-`static`, non-`final` field (on that class; superclass fields are ignored)
 - Field name = YAML key
-- Supported types: `boolean`/`Boolean`, `int`/`Integer`, `long`/`Long`, `double`/`Double`, `float`/`Float`, `String`, `List<String>`
+- Supported leaf types: `boolean`/`Boolean`, `int`/`Integer`, `long`/`Long`, `double`/`Double`, `float`/`Float`, `String`, `List<String>`
+- Nested public classes (static nested or top-level) become YAML sections — same field rules, public no-arg constructor
 - Do **not** mix with `@Component`, `@Wire`, events, commands, schedules, or lifecycle hooks
+- Do **not** nest another `@Config` type as a field (plain class for sections; separate `@Config` + `@Wire` for another file)
 - `file` must be relative to the plugin data folder (no absolute paths, no `..`)
 - Two `@Config` classes cannot share the same `file`
 

@@ -61,9 +61,11 @@ On a concrete public class with a public no-arg constructor. Defines typed setti
 
 - Field name = YAML key
 - Fields must be public, non-`static`, non-`final`
-- Types: `boolean`/`Boolean`, `int`/`Integer`, `long`/`Long`, `double`/`Double`, `float`/`Float`, `String`, `List<String>`
+- Leaf types: `boolean`/`Boolean`, `int`/`Integer`, `long`/`Long`, `double`/`Double`, `float`/`Float`, `String`, `List<String>`
+- Nested public classes (static nested or top-level, public no-arg ctor) become YAML sections
 - Optional: `file` (default `config.yml`), `persistent` (`false` = Java defaults only, no disk)
 - Do not mix with `@Component`, `@Wire`, events, commands, schedules, or lifecycle
+- Do not nest another `@Config` type as a field
 - Inject with `@Wire` into other managed classes
 
 ## `@OnEnable` / `@OnDisable`
