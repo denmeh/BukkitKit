@@ -50,7 +50,7 @@ Creation order follows dependencies. If there is a cycle (A needs B and B needs 
 
 ## Wire the plugin into a component
 
-Components often need the plugin instance (for loggers, data folder, registering things). Inject a built-in — not the `@BukkitKit` marker (that class has no Paper methods in source, so the IDE cannot see `getLogger()`):
+Components often need the plugin instance (for loggers, data folder, registering things). Inject a built-in — not the `@BukkitKit` marker (that class is metadata only; the live plugin is the generated `JavaPlugin`):
 
 ```java
 @Component
