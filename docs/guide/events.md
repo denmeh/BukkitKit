@@ -26,14 +26,16 @@ import dev.bukkitkit.api.OnEvent;
 import dev.bukkitkit.api.Wire;
 import org.bukkit.event.player.PlayerJoinEvent;
 
+import java.util.logging.Logger;
+
 public final class JoinListener {
 
     @Wire
-    private HelloPlugin plugin;
+    private Logger logger;
 
     @OnEvent
     public void onJoin(PlayerJoinEvent event) {
-        plugin.getLogger().info("Player joined: " + event.getPlayer().getName());
+        logger.info("Player joined: " + event.getPlayer().getName());
     }
 }
 ```
@@ -68,4 +70,4 @@ public void onChat(AsyncPlayerChatEvent event) {
 
 ## Next
 
-[Lifecycle](./lifecycle) — run setup and teardown code when the plugin enables or disables.
+[Lifecycle](./lifecycle) — run setup and teardown with `@OnEnable` / `@OnDisable`.

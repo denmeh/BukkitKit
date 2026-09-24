@@ -15,7 +15,7 @@ hero:
 
 features:
   - title: Start simple
-    details: One annotation on your JavaPlugin is enough to begin. Add features only when you need them.
+    details: One annotated marker class is enough to begin — BukkitKit writes the JavaPlugin entry and plugin.yml. Add features only when you need them.
   - title: Build in pieces
     details: Split your plugin into small components. BukkitKit connects them for you at compile time.
   - title: Less Bukkit glue

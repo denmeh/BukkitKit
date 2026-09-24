@@ -6,16 +6,16 @@ If you have written a plugin before, you know the usual pattern: extend `JavaPlu
 
 BukkitKit gives you a clearer way to structure the same work:
 
-1. Mark your plugin class with `@BukkitKit`
+1. Mark a plain class with `@BukkitKit` (name, version, api version — no `JavaPlugin` or `plugin.yml` by hand)
 2. Put game logic in small `@Component` classes
 3. Ask for what you need with `@Wire`
-4. Optionally use `@OnEvent`, `Lifecycle`, and `@Scheduled` for listeners, enable/disable hooks, and repeating work
+4. Optionally use `@OnEvent`, `@OnEnable` / `@OnDisable`, and `@Scheduled` for listeners, startup hooks, and repeating work
 
 You still write normal Paper/Bukkit code. BukkitKit does not replace the Minecraft API — it organizes how your classes connect.
 
 ## Who this guide is for
 
-You should already know a little Java and have a rough idea of what a Paper plugin is (`JavaPlugin`, `plugin.yml`, events). You do **not** need to know dependency injection, annotation processors, or frameworks like Guice/Spring.
+You should already know a little Java and have a rough idea of what a Paper plugin is (plugins, events, `plugin.yml`). You do **not** need to know dependency injection, annotation processors, or frameworks like Guice/Spring.
 
 ## How to read this guide
 

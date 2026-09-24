@@ -1,6 +1,6 @@
 # 1. Your first plugin
 
-Goal: turn a normal Paper plugin into a BukkitKit plugin with one annotation.
+Goal: declare a BukkitKit plugin with metadata — no `JavaPlugin` subclass and no hand-written `plugin.yml`.
 
 ## Before BukkitKit
 
@@ -25,28 +25,21 @@ public final class HelloPlugin extends JavaPlugin {
 }
 ```
 
-Plus a `plugin.yml` that points `main` at this class. That does not change with BukkitKit.
+Plus a hand-written `plugin.yml` that points `main` at this class.
 
-## Add `@BukkitKit`
+## With `@BukkitKit`
 
 ```java
 package com.example.hello;
 
 import dev.bukkitkit.api.BukkitKit;
-import org.bukkit.plugin.java.JavaPlugin;
 
-@BukkitKit
-public final class HelloPlugin extends JavaPlugin {
-
-    @Override
-    public void onEnable() {
-        getLogger().info("Hello enabled");
-    }
-
-    @Override
-    public void onDisable() {
-        getLogger().info("Hello disabled");
-    }
+@BukkitKit(
+        name = "Hello",
+        version = "1.0.0",
+        apiVersion = "1.21"
+)
+public final class HelloPlugin {
 }
 ```
 
@@ -54,18 +47,19 @@ That is the whole change for step 1.
 
 What happens under the hood (you do not write this):
 
-- When the server calls `onEnable`, BukkitKit runs first and starts its bootstrap for this plugin
-- When `onDisable` finishes your code, BukkitKit cleans up (listeners it registered, schedules, etc.)
+- BukkitKit turns `HelloPlugin` into a `JavaPlugin` at compile time
+- It writes `plugin.yml` from the annotation (`name`, `version`, `main`, `api-version`, …)
+- When the server enables the plugin, BukkitKit runs bootstrap (components, events, schedules)
 
-For this empty plugin there are no components yet, so bootstrap is a no-op beyond setup. The annotation is still useful: it opts the plugin into BukkitKit so later features work.
+For this empty plugin there are no components yet, so bootstrap is a no-op beyond setup. Add startup logic later with `@OnEnable` on components.
 
 ## Checklist
 
-- Class extends `JavaPlugin`
-- Class is annotated with `@BukkitKit`
-- `plugin.yml` `main` matches the class
+- Public top-level class annotated with `@BukkitKit`
+- Metadata: at least `name`, `version`, `apiVersion`
+- Do **not** extend `JavaPlugin` or write `plugin.yml` yourself
 - Setup from the previous page is in place (dependency + processor + shade)
 
 ## Next
 
-[Components](./components) — move logic out of the plugin class into a small service.
+[Components](./components) — put plugin logic in small service classes.

@@ -102,16 +102,22 @@ public final class GraphValidator {
         boolean valid = true;
         for (int i = 0; i < component.dependencies().size(); i++) {
             String dep = component.dependencies().get(i);
-            if (componentNames.contains(dep)
-                    || BuiltInTypes.isBuiltIn(dep)
-                    || pluginTypeNames.contains(dep)) {
+            if (componentNames.contains(dep) || BuiltInTypes.isBuiltIn(dep)) {
+                continue;
+            }
+            if (pluginTypeNames.contains(dep)) {
+                error(component.type(),
+                        "Cannot @Wire @BukkitKit marker " + dep
+                                + " (parameter/field " + i + "). "
+                                + "Inject JavaPlugin, Plugin, or Logger instead.");
+                valid = false;
                 continue;
             }
             if (rootTypeNames.contains(dep)) {
                 error(component.type(),
                         "Unresolved dependency " + dep + " (parameter/field " + i + "). "
-                                + "Declare @Component (or @OnEvent on the type), use a built-in type, "
-                                + "or wire the @BukkitKit plugin type.");
+                                + "Declare @Component (or @OnEvent/@OnEnable/@OnDisable on the type), "
+                                + "or use a built-in type (JavaPlugin, Logger, …).");
                 valid = false;
             }
         }

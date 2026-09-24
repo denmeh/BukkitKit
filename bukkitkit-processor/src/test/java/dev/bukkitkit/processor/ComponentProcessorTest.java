@@ -107,14 +107,15 @@ class ComponentProcessorTest {
                 "demo.Ticker",
                 "package demo;",
                 "import dev.bukkitkit.api.Component;",
-                "import dev.bukkitkit.api.Lifecycle;",
+                "import dev.bukkitkit.api.OnDisable;",
+                "import dev.bukkitkit.api.OnEnable;",
                 "import dev.bukkitkit.api.ScheduleUnit;",
                 "import dev.bukkitkit.api.Scheduled;",
                 "@Component",
-                "public class Ticker implements Lifecycle {",
+                "public class Ticker {",
                 "  public Ticker() {}",
-                "  @Override public void onEnable() {}",
-                "  @Override public void onDisable() {}",
+                "  @OnEnable public void start() {}",
+                "  @OnDisable public void stop() {}",
                 "  @Scheduled(every = 5, unit = ScheduleUnit.SECONDS)",
                 "  public boolean tick() { return true; }",
                 "  @Scheduled(every = -1, delay = 1, unit = ScheduleUnit.TICKS)",
@@ -129,11 +130,11 @@ class ComponentProcessorTest {
         assertThat(compilation)
                 .generatedSourceFile("demo.BukkitKitInit")
                 .contentsAsUtf8String()
-                .contains("Lifecycles.enable");
+                .contains("Ticker.__bukkitKit_instance.start()");
         assertThat(compilation)
                 .generatedSourceFile("demo.BukkitKitInit")
                 .contentsAsUtf8String()
-                .contains("Lifecycles.disable");
+                .contains("Ticker.__bukkitKit_instance.stop()");
         assertThat(compilation)
                 .generatedSourceFile("demo.BukkitKitInit")
                 .contentsAsUtf8String()
@@ -293,6 +294,88 @@ class ComponentProcessorTest {
 
         assertThat(compilation).failed();
         assertThat(compilation).hadErrorContaining("subtype of org.bukkit.event.Event");
+    }
+
+    @Test
+    void generatesPluginYmlFromBukkitKitMarker() {
+        JavaFileObject marker = JavaFileObjects.forSourceLines(
+                "demo.HelloPlugin",
+                "package demo;",
+                "import dev.bukkitkit.api.BukkitKit;",
+                "@BukkitKit(",
+                "  name = \"Hello\",",
+                "  version = \"1.0.0\",",
+                "  apiVersion = \"1.21\",",
+                "  description = \"Demo\",",
+                "  authors = {\"denmeh\"}",
+                ")",
+                "public final class HelloPlugin {",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(marker);
+
+        assertThat(compilation).succeeded();
+        assertThat(compilation)
+                .generatedFile(StandardLocation.CLASS_OUTPUT, "plugin.yml")
+                .contentsAsUtf8String()
+                .contains("name: Hello");
+        assertThat(compilation)
+                .generatedFile(StandardLocation.CLASS_OUTPUT, "plugin.yml")
+                .contentsAsUtf8String()
+                .contains("main: demo.HelloPlugin");
+        assertThat(compilation)
+                .generatedFile(StandardLocation.CLASS_OUTPUT, "plugin.yml")
+                .contentsAsUtf8String()
+                .contains("api-version: \"1.21\"");
+    }
+
+    @Test
+    void failsWhenBukkitKitExtendsJavaPlugin() {
+        JavaFileObject marker = JavaFileObjects.forSourceLines(
+                "demo.BadPlugin",
+                "package demo;",
+                "import dev.bukkitkit.api.BukkitKit;",
+                "import org.bukkit.plugin.java.JavaPlugin;",
+                "@BukkitKit(name = \"Bad\", version = \"1\", apiVersion = \"1.21\")",
+                "public final class BadPlugin extends JavaPlugin {",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(marker);
+
+        assertThat(compilation).failed();
+        assertThat(compilation).hadErrorContaining("must not extend JavaPlugin");
+    }
+
+    @Test
+    void failsWhenWiringBukkitKitMarker() {
+        JavaFileObject marker = JavaFileObjects.forSourceLines(
+                "demo.HelloPlugin",
+                "package demo;",
+                "import dev.bukkitkit.api.BukkitKit;",
+                "@BukkitKit(name = \"Hello\", version = \"1\", apiVersion = \"1.21\")",
+                "public final class HelloPlugin {",
+                "}");
+        JavaFileObject service = JavaFileObjects.forSourceLines(
+                "demo.Service",
+                "package demo;",
+                "import dev.bukkitkit.api.Component;",
+                "import dev.bukkitkit.api.Wire;",
+                "@Component",
+                "public class Service {",
+                "  @Wire private HelloPlugin plugin;",
+                "  public Service() {}",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(marker, service);
+
+        assertThat(compilation).failed();
+        assertThat(compilation).hadErrorContaining("Cannot @Wire @BukkitKit marker");
     }
 
     @Test

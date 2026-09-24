@@ -1,29 +1,18 @@
 package dev.bukkitkit.processor.model;
 
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
 import java.util.List;
 
 /**
- * A {@code @BukkitKit} plugin class and its {@code @Wire} fields.
+ * A {@code @BukkitKit} marker class and its {@code plugin.yml} metadata.
  */
 public record PluginModel(
         TypeElement type,
         String typeName,
-        List<InjectedField> injectedFields
+        String name,
+        String version,
+        String apiVersion,
+        String description,
+        List<String> authors
 ) {
-
-    public enum FieldKind {
-        COMPONENT,
-        PLATFORM,
-        PLUGIN
-    }
-
-    public record InjectedField(
-            VariableElement element,
-            String fieldName,
-            String typeName,
-            FieldKind kind
-    ) {
-    }
 }

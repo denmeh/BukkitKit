@@ -8,9 +8,8 @@ When your plugin enables, BukkitKit can wire these types into `@Wire` fields:
 
 | Type | Typical use |
 |------|-------------|
-| Your `@BukkitKit` plugin class | Config, data folder, plugin-specific APIs |
+| `org.bukkit.plugin.java.JavaPlugin` | Plugin handle (usual choice) |
 | `org.bukkit.plugin.Plugin` | Generic plugin handle |
-| `org.bukkit.plugin.java.JavaPlugin` | Same family as your plugin |
 | `org.bukkit.Server` | Worlds, players, broadcast, … |
 | `java.util.logging.Logger` | Logging |
 | `org.bukkit.plugin.PluginManager` | Register/query plugins (advanced) |
@@ -44,7 +43,7 @@ public final class PlayerManager {
     @Wire
     private Server server;
     @Wire
-    private HelloPlugin plugin;
+    private JavaPlugin plugin;
 
     public String describe() {
         repository.warmUp();
@@ -54,7 +53,7 @@ public final class PlayerManager {
 }
 ```
 
-Prefer injecting `Logger` or your plugin over static `Bukkit` calls when you can — it keeps classes easier to test and reason about.
+Prefer injecting `Logger` or `JavaPlugin` over static `Bukkit` calls when you can — it keeps classes easier to test and reason about.
 
 ## What is not built-in?
 

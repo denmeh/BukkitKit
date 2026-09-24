@@ -1,28 +1,26 @@
 package dev.bukkitkit.processor.analysis;
 
+import dev.bukkitkit.api.BukkitKit;
+import dev.bukkitkit.api.Component;
 import dev.bukkitkit.api.Wire;
-import dev.bukkitkit.processor.builtins.BuiltInTypes;
 import dev.bukkitkit.processor.model.PluginModel;
-import dev.bukkitkit.processor.model.PluginModel.FieldKind;
 
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 
 /**
- * Analyzes {@code @BukkitKit} plugin classes and their {@code @Wire} fields.
+ * Analyzes {@code @BukkitKit} marker classes (metadata only; no user {@code JavaPlugin}).
  */
 public final class PluginAnalyzer {
 
@@ -38,76 +36,106 @@ public final class PluginAnalyzer {
         this.messager = messager;
     }
 
-    public PluginModel analyze(
-            TypeElement type,
-            Set<String> componentTypeNames,
-            Set<String> pluginTypeNames) {
+    public PluginModel analyze(TypeElement type) {
         if (type.getKind() != ElementKind.CLASS) {
             error(type, "@BukkitKit is only valid on classes");
             return null;
         }
-        if (!isJavaPlugin(type)) {
-            error(type, "@BukkitKit class must extend org.bukkit.plugin.java.JavaPlugin");
+        if (type.getNestingKind().isNested()) {
+            error(type, "@BukkitKit class must be a top-level class");
+            return null;
+        }
+        if (type.getModifiers().contains(Modifier.ABSTRACT)) {
+            error(type, "@BukkitKit class must not be abstract");
+            return null;
+        }
+        if (!type.getModifiers().contains(Modifier.PUBLIC)) {
+            error(type, "@BukkitKit class must be public");
+            return null;
+        }
+        if (type.getAnnotation(Component.class) != null) {
+            error(type, "@BukkitKit class must not also be a @Component");
+            return null;
+        }
+        if (alreadyJavaPlugin(type)) {
+            error(type, "@BukkitKit class must not extend JavaPlugin "
+                    + "(BukkitKit generates that)");
+            return null;
+        }
+        if (extendsSomethingOtherThanObject(type)) {
+            error(type, "@BukkitKit class must not declare a superclass "
+                    + "(BukkitKit makes it extend JavaPlugin)");
             return null;
         }
 
-        List<PluginModel.InjectedField> fields = new ArrayList<>();
         boolean ok = true;
         for (VariableElement field : ElementFilter.fieldsIn(type.getEnclosedElements())) {
-            if (field.getAnnotation(Wire.class) == null) {
-                continue;
-            }
-            if (field.getModifiers().contains(Modifier.STATIC)) {
-                error(field, "@Wire field must not be static");
+            if (field.getAnnotation(Wire.class) != null) {
+                error(field, "@Wire is not supported on @BukkitKit markers; "
+                        + "inject into @Component types instead");
                 ok = false;
-                continue;
             }
-            if (field.getModifiers().contains(Modifier.FINAL)) {
-                error(field, "@Wire field must not be final");
+        }
+        for (var method : ElementFilter.methodsIn(type.getEnclosedElements())) {
+            String name = method.getSimpleName().toString();
+            if (("onEnable".equals(name) || "onDisable".equals(name))
+                    && method.getParameters().isEmpty()) {
+                error(method, "@BukkitKit marker must not declare " + name
+                        + "(); use @OnEnable / @OnDisable on components instead");
                 ok = false;
-                continue;
             }
-            TypeMirror fieldType = field.asType();
-            if (fieldType.getKind() != TypeKind.DECLARED) {
-                error(field, "Unsupported @Wire field type: " + fieldType);
-                ok = false;
-                continue;
-            }
-            TypeElement fieldTypeElement = (TypeElement) ((DeclaredType) fieldType).asElement();
-            String fieldTypeName = fieldTypeElement.getQualifiedName().toString();
+        }
 
-            FieldKind kind;
-            if (BuiltInTypes.isBuiltIn(fieldTypeName)) {
-                kind = FieldKind.PLATFORM;
-            } else if (pluginTypeNames.contains(fieldTypeName)) {
-                kind = FieldKind.PLUGIN;
-            } else if (componentTypeNames.contains(fieldTypeName)) {
-                kind = FieldKind.COMPONENT;
-            } else {
-                error(field, "Unresolved @Wire dependency " + fieldTypeName
-                        + ". Declare @Component, use a built-in type, or wire the @BukkitKit plugin type.");
-                ok = false;
-                continue;
-            }
-            fields.add(new PluginModel.InjectedField(
-                    field,
-                    field.getSimpleName().toString(),
-                    fieldTypeName,
-                    kind));
+        BukkitKit annotation = type.getAnnotation(BukkitKit.class);
+        if (annotation == null) {
+            return null;
+        }
+        if (annotation.name().isBlank()) {
+            error(type, "@BukkitKit name() must not be blank");
+            ok = false;
+        }
+        if (annotation.version().isBlank()) {
+            error(type, "@BukkitKit version() must not be blank");
+            ok = false;
+        }
+        if (annotation.apiVersion().isBlank()) {
+            error(type, "@BukkitKit apiVersion() must not be blank");
+            ok = false;
         }
 
         if (!ok) {
             return null;
         }
-        return new PluginModel(type, type.getQualifiedName().toString(), List.copyOf(fields));
+
+        return new PluginModel(
+                type,
+                type.getQualifiedName().toString(),
+                annotation.name(),
+                annotation.version(),
+                annotation.apiVersion(),
+                annotation.description(),
+                List.copyOf(Arrays.asList(annotation.authors())));
     }
 
-    private boolean isJavaPlugin(TypeElement type) {
+    private boolean extendsSomethingOtherThanObject(TypeElement type) {
+        TypeMirror superclass = type.getSuperclass();
+        if (superclass.getKind() != TypeKind.DECLARED) {
+            return false;
+        }
+        TypeElement object = elements.getTypeElement("java.lang.Object");
+        if (object == null) {
+            return false;
+        }
+        return !types.isSameType(superclass, object.asType());
+    }
+
+    private boolean alreadyJavaPlugin(TypeElement type) {
         TypeElement javaPlugin = elements.getTypeElement(JAVA_PLUGIN);
         if (javaPlugin == null) {
-            return true;
+            return false;
         }
-        return types.isSubtype(type.asType(), javaPlugin.asType());
+        return types.isSubtype(type.asType(), javaPlugin.asType())
+                && !types.isSameType(type.asType(), javaPlugin.asType());
     }
 
     private void error(javax.lang.model.element.Element element, String message) {

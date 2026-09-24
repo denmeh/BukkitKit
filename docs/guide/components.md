@@ -1,10 +1,10 @@
 # 2. Components
 
-Goal: put plugin logic in a dedicated class instead of stuffing everything into `JavaPlugin`.
+Goal: put plugin logic in a dedicated class instead of one giant entry point.
 
 ## Why split things up?
 
-As plugins grow, `onEnable` becomes a dumping ground: load configs, create managers, register listeners, start tasks. Components let you name a piece of behavior (`PlayerManager`, `WarpService`, …) and keep the plugin class thin.
+As plugins grow, enable logic becomes a dumping ground: load configs, create managers, register listeners, start tasks. Components let you name a piece of behavior (`PlayerManager`, `WarpService`, …) and keep concerns separate.
 
 ## Create a `@Component`
 
@@ -30,45 +30,48 @@ Rules for now:
 
 BukkitKit finds this class at compile time and creates **one shared instance** (a singleton) when the plugin enables.
 
-## Use it from the plugin
+## Use it from another component
 
-Ask the plugin for the component with `@Wire`:
+Wire it into a component that runs on enable:
 
 ```java
 package com.example.hello;
 
-import dev.bukkitkit.api.BukkitKit;
+import dev.bukkitkit.api.Component;
+import dev.bukkitkit.api.OnEnable;
 import dev.bukkitkit.api.Wire;
-import org.bukkit.plugin.java.JavaPlugin;
+import java.util.logging.Logger;
 
-@BukkitKit
-public final class HelloPlugin extends JavaPlugin {
+@Component
+public final class Startup {
 
     @Wire
     private GreetingService greetings;
+    @Wire
+    private Logger logger;
 
-    @Override
-    public void onEnable() {
-        getLogger().info(greetings.message());
+    @OnEnable
+    public void start() {
+        logger.info(greetings.message());
     }
 }
 ```
 
 Important details:
 
-- The field is filled **before** your `onEnable` body runs
+- `@Wire` fields are filled **before** `@OnEnable` runs
 - Do not use `static` or `final` on `@Wire` fields
 - You do not call `new GreetingService()` yourself
 
-If `GreetingService` is missing `@Component`, or the processor is not configured, the build or enable path will not wire correctly — fix setup first.
+If `GreetingService` is missing `@Component`, or the processor is not configured, the build fails — fix setup first.
 
 ## Mental model
 
 ```
 Server starts plugin
-  → BukkitKit creates each @Component once
-  → BukkitKit fills @Wire fields on the plugin
-  → your onEnable() runs
+  → BukkitKit creates each managed class once
+  → BukkitKit fills @Wire fields
+  → @OnEnable methods run (dependency order)
 ```
 
 ## Next

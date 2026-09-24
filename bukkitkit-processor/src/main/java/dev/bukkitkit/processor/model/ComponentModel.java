@@ -4,7 +4,7 @@ import javax.lang.model.element.TypeElement;
 import java.util.List;
 
 /**
- * Analyzed {@code @Component} type ready for injection and bootstrap generation.
+ * Analyzed component type ready for injection and bootstrap generation.
  */
 public record ComponentModel(
         TypeElement type,
@@ -16,6 +16,8 @@ public record ComponentModel(
         List<WiredField> wiredFields,
         List<ScheduledMethod> scheduledMethods,
         List<EventMethod> eventMethods,
+        List<LifecycleMethod> onEnableMethods,
+        List<LifecycleMethod> onDisableMethods,
         boolean needsListener
 ) {
 
@@ -29,5 +31,13 @@ public record ComponentModel(
 
     public boolean hasEvents() {
         return !eventMethods.isEmpty();
+    }
+
+    public boolean hasOnEnable() {
+        return !onEnableMethods.isEmpty();
+    }
+
+    public boolean hasOnDisable() {
+        return !onDisableMethods.isEmpty();
     }
 }

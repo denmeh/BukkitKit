@@ -1,6 +1,0 @@
-name: BukkitKitDemo
-version: 1.0-SNAPSHOT
-main: dev.bukkitkit.demo.DemoPlugin
-api-version: "1.21"
-description: Demo Paper plugin for BukkitKit
-authors: [denmeh]

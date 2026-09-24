@@ -1,7 +1,5 @@
 package dev.bukkitkit.paper;
 
-import dev.bukkitkit.api.BukkitKitException;
-
 import org.bukkit.Server;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginManager;
@@ -37,17 +35,5 @@ public record PlatformServices(
                 server.getScheduler(),
                 new KitScheduler(plugin)
         );
-    }
-
-    /**
-     * Returns the running plugin cast to its concrete {@code @BukkitKit} type.
-     */
-    public <T extends JavaPlugin> T plugin(Class<T> type) {
-        if (!type.isInstance(javaPlugin)) {
-            throw new BukkitKitException(
-                    "BukkitKit: expected plugin of type " + type.getName()
-                            + " but was " + javaPlugin.getClass().getName());
-        }
-        return type.cast(javaPlugin);
     }
 }

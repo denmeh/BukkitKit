@@ -6,6 +6,7 @@ import dev.bukkitkit.processor.model.ComponentModel;
 import dev.bukkitkit.processor.model.ComponentModel.InjectionKind;
 import dev.bukkitkit.processor.model.ComponentModel.WiredField;
 import dev.bukkitkit.processor.model.EventMethod;
+import dev.bukkitkit.processor.model.LifecycleMethod;
 import dev.bukkitkit.processor.model.ScheduledMethod;
 
 import com.squareup.javapoet.ClassName;
@@ -21,7 +22,6 @@ import javax.tools.StandardLocation;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Generates {@code BukkitKitInit} and the bootstrap resource index.
@@ -32,8 +32,6 @@ public final class BootstrapGenerator {
             ClassName.get("dev.bukkitkit.paper", "KitBootstrap");
     private static final ClassName PLATFORM_SERVICES =
             ClassName.get("dev.bukkitkit.paper", "PlatformServices");
-    private static final ClassName LIFECYCLES =
-            ClassName.get("dev.bukkitkit.api", "Lifecycles");
     private static final ClassName BUKKIT_KIT_EXCEPTION =
             ClassName.get("dev.bukkitkit.api", "BukkitKitException");
     private static final ClassName BUKKIT_EVENT_PRIORITY =
@@ -42,14 +40,12 @@ public final class BootstrapGenerator {
             ClassName.get("org.bukkit.event", "HandlerList");
 
     private final Filer filer;
-    private Set<String> pluginTypeNames = Set.of();
 
     public BootstrapGenerator(Filer filer) {
         this.filer = filer;
     }
 
-    public void write(List<ComponentModel> orderedComponents, Set<String> pluginTypeNames) throws IOException {
-        this.pluginTypeNames = pluginTypeNames == null ? Set.of() : Set.copyOf(pluginTypeNames);
+    public void write(List<ComponentModel> orderedComponents) throws IOException {
         String packageName = commonPackage(orderedComponents);
         String simpleName = "BukkitKitInit";
         String fqcn = packageName.isEmpty() ? simpleName : packageName + "." + simpleName;
@@ -103,13 +99,18 @@ public final class BootstrapGenerator {
         }
 
         for (ComponentModel component : ordered) {
+            if (!component.hasOnEnable()) {
+                continue;
+            }
             ClassName type = ClassName.bestGuess(component.typeName());
             method.beginControlFlow("try");
-            method.addStatement(
-                    "$T.enable($T.$L)",
-                    LIFECYCLES,
-                    type,
-                    BukkitKitSymbols.INSTANCE_FIELD);
+            for (LifecycleMethod enable : component.onEnableMethods()) {
+                method.addStatement(
+                        "$T.$L.$L()",
+                        type,
+                        BukkitKitSymbols.INSTANCE_FIELD,
+                        enable.methodName());
+            }
             method.nextControlFlow("catch ($T ex)", RuntimeException.class);
             method.addStatement(
                     "throw new $T($S, ex)",
@@ -224,9 +225,6 @@ public final class BootstrapGenerator {
         if (BuiltInTypes.isBuiltIn(dep)) {
             return CodeBlock.of("s.$L()", BuiltInTypes.accessor(dep));
         }
-        if (pluginTypeNames.contains(dep)) {
-            return CodeBlock.of("s.plugin($T.class)", ClassName.bestGuess(dep));
-        }
         return CodeBlock.of("$T.$L", ClassName.bestGuess(dep), BukkitKitSymbols.INSTANCE_FIELD);
     }
 
@@ -252,13 +250,19 @@ public final class BootstrapGenerator {
 
         for (int i = ordered.size() - 1; i >= 0; i--) {
             ComponentModel component = ordered.get(i);
+            if (!component.hasOnDisable()) {
+                continue;
+            }
             ClassName type = ClassName.bestGuess(component.typeName());
+            List<LifecycleMethod> disables = component.onDisableMethods();
             method.beginControlFlow("try");
-            method.addStatement(
-                    "$T.disable($T.$L)",
-                    LIFECYCLES,
-                    type,
-                    BukkitKitSymbols.INSTANCE_FIELD);
+            for (int j = disables.size() - 1; j >= 0; j--) {
+                method.addStatement(
+                        "$T.$L.$L()",
+                        type,
+                        BukkitKitSymbols.INSTANCE_FIELD,
+                        disables.get(j).methodName());
+            }
             method.nextControlFlow("catch ($T ignored)", RuntimeException.class);
             method.endControlFlow();
         }

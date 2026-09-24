@@ -1,5 +1,7 @@
 package dev.bukkitkit.processor.analysis;
 
+import dev.bukkitkit.api.OnDisable;
+import dev.bukkitkit.api.OnEnable;
 import dev.bukkitkit.api.OnEvent;
 import dev.bukkitkit.api.Scheduled;
 import dev.bukkitkit.api.Wire;
@@ -7,6 +9,7 @@ import dev.bukkitkit.processor.model.ComponentModel;
 import dev.bukkitkit.processor.model.ComponentModel.InjectionKind;
 import dev.bukkitkit.processor.model.ComponentModel.WiredField;
 import dev.bukkitkit.processor.model.EventMethod;
+import dev.bukkitkit.processor.model.LifecycleMethod;
 import dev.bukkitkit.processor.model.ScheduledMethod;
 
 import javax.annotation.processing.Messager;
@@ -64,6 +67,8 @@ public final class ComponentAnalyzer {
         List<WiredField> wiredFields = readWiredFields(type);
         List<ScheduledMethod> scheduledMethods = readScheduledMethods(type);
         List<EventMethod> eventMethods = readEventMethods(type);
+        List<LifecycleMethod> onEnableMethods = readLifecycleMethods(type, OnEnable.class, "@OnEnable");
+        List<LifecycleMethod> onDisableMethods = readLifecycleMethods(type, OnDisable.class, "@OnDisable");
         boolean alreadyListener = implementsListener(type);
         boolean needsListener = !eventMethods.isEmpty() && !alreadyListener;
 
@@ -101,6 +106,8 @@ public final class ComponentAnalyzer {
                     List.copyOf(wiredFields),
                     List.copyOf(scheduledMethods),
                     List.copyOf(eventMethods),
+                    List.copyOf(onEnableMethods),
+                    List.copyOf(onDisableMethods),
                     needsListener);
         }
 
@@ -125,6 +132,8 @@ public final class ComponentAnalyzer {
                 List.of(),
                 List.copyOf(scheduledMethods),
                 List.copyOf(eventMethods),
+                List.copyOf(onEnableMethods),
+                List.copyOf(onDisableMethods),
                 needsListener);
     }
 
@@ -208,6 +217,36 @@ public final class ComponentAnalyzer {
                     annotation.unit(),
                     annotation.async(),
                     booleanReturn));
+        }
+        return methods;
+    }
+
+    private List<LifecycleMethod> readLifecycleMethods(
+            TypeElement type,
+            Class<? extends java.lang.annotation.Annotation> annotationType,
+            String label) {
+        List<LifecycleMethod> methods = new ArrayList<>();
+        for (ExecutableElement method : ElementFilter.methodsIn(type.getEnclosedElements())) {
+            if (method.getAnnotation(annotationType) == null) {
+                continue;
+            }
+            if (method.getModifiers().contains(Modifier.STATIC)) {
+                error(method, label + " method must not be static");
+                continue;
+            }
+            if (!method.getModifiers().contains(Modifier.PUBLIC)) {
+                error(method, label + " method must be public");
+                continue;
+            }
+            if (!method.getParameters().isEmpty()) {
+                error(method, label + " method must not take parameters");
+                continue;
+            }
+            if (method.getReturnType().getKind() != TypeKind.VOID) {
+                error(method, label + " method must return void");
+                continue;
+            }
+            methods.add(new LifecycleMethod(method, method.getSimpleName().toString()));
         }
         return methods;
     }

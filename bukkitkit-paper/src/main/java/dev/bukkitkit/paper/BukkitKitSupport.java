@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Runtime entry points invoked from AST-rewritten {@code onEnable}/{@code onDisable}.
+ * Runtime entry points invoked from the generated {@code JavaPlugin} lifecycle.
  */
 public final class BukkitKitSupport {
 

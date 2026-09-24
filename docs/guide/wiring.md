@@ -40,39 +40,24 @@ public final class PlayerManager {
 }
 ```
 
-```java
-@BukkitKit
-public final class HelloPlugin extends JavaPlugin {
-
-    @Wire
-    private PlayerManager players;
-
-    @Override
-    public void onEnable() {
-        getLogger().info(players.describe());
-    }
-}
-```
-
 BukkitKit:
 
 1. Creates `PlayerRepository`
 2. Creates `PlayerManager` and sets `repository`
-3. Sets `players` on the plugin
-4. Then runs your `onEnable`
+3. Runs `@OnEnable` methods in dependency order
 
 Creation order follows dependencies. If there is a cycle (A needs B and B needs A), the processor fails the build so you can untangle it.
 
 ## Wire the plugin into a component
 
-Components often need the plugin instance (for loggers, data folder, registering things):
+Components often need the plugin instance (for loggers, data folder, registering things). Inject a built-in — not the `@BukkitKit` marker (that class has no Paper methods in source, so the IDE cannot see `getLogger()`):
 
 ```java
 @Component
 public final class PlayerManager {
 
     @Wire
-    private HelloPlugin plugin;
+    private JavaPlugin plugin;
 
     @Wire
     private PlayerRepository repository;
@@ -83,25 +68,15 @@ public final class PlayerManager {
 }
 ```
 
-You can also `@Wire` the plugin type on the plugin class itself (same instance as `this`):
-
-```java
-@BukkitKit
-public final class HelloPlugin extends JavaPlugin {
-
-    @Wire
-    private HelloPlugin self;
-
-    @Wire
-    private PlayerManager players;
-}
-```
+Or inject `Logger` when you only need logging.
 
 ## Rules to remember
 
 | Do | Don’t |
 |----|--------|
-| `@Wire` on instance fields | `@Wire` on `static` or `final` fields |
+| `@Wire` on instance fields of components | `@Wire` on the `@BukkitKit` marker |
+| `@Wire` `JavaPlugin` / `Logger` / other built-ins | `@Wire` the `@BukkitKit` marker type |
+| Instance `@Wire` fields only | `@Wire` on `static` or `final` fields |
 | Public no-arg constructor on components that use `@Wire` | Hide the only constructor or make it package-private only |
 | Depend on other `@Component` types or [built-ins](./built-ins) | Expect arbitrary `new`-only classes to appear magically |
 

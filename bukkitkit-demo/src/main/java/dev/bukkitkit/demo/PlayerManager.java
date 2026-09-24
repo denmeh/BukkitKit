@@ -1,32 +1,34 @@
 package dev.bukkitkit.demo;
 
 import dev.bukkitkit.api.Component;
-import dev.bukkitkit.api.Lifecycle;
+import dev.bukkitkit.api.OnDisable;
+import dev.bukkitkit.api.OnEnable;
 import dev.bukkitkit.api.ScheduleUnit;
 import dev.bukkitkit.api.Scheduled;
 import dev.bukkitkit.api.Wire;
 
 import org.bukkit.Server;
+import org.bukkit.plugin.java.JavaPlugin;
 
 @Component
-public final class PlayerManager implements Lifecycle {
+public final class PlayerManager {
 
     @Wire
     private PlayerRepository repository;
     @Wire
     private Server server;
     @Wire
-    private DemoPlugin plugin;
+    private JavaPlugin plugin;
 
     private int ticks;
 
-    @Override
-    public void onEnable() {
-        plugin.getLogger().info("PlayerManager onEnable");
+    @OnEnable
+    public void start() {
+        plugin.getLogger().info("PlayerManager onEnable — " + describe());
     }
 
-    @Override
-    public void onDisable() {
+    @OnDisable
+    public void stop() {
         plugin.getLogger().info("PlayerManager onDisable (ticks=" + ticks + ")");
     }
 

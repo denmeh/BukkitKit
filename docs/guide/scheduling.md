@@ -9,12 +9,13 @@ import dev.bukkitkit.api.Component;
 import dev.bukkitkit.api.ScheduleUnit;
 import dev.bukkitkit.api.Scheduled;
 import dev.bukkitkit.api.Wire;
+import org.bukkit.plugin.java.JavaPlugin;
 
 @Component
 public final class PlayerManager {
 
     @Wire
-    private HelloPlugin plugin;
+    private JavaPlugin plugin;
 
     private int ticks;
 
@@ -86,11 +87,11 @@ When the plugin disables, BukkitKit cancels the schedules it started. You do not
 
 You now have the full starter toolkit:
 
-1. `@BukkitKit` plugin
+1. `@BukkitKit` marker (+ generated `plugin.yml`)
 2. `@Component` services
 3. `@Wire` between them and built-ins
 4. `@OnEvent` for listeners
-5. `Lifecycle` for start/stop
+5. `@OnEnable` / `@OnDisable` for start/stop
 6. `@Scheduled` for timers
 
 Use the [cheat sheet](./cheat-sheet) as a quick reference, and look at `bukkitkit-demo` in the repository for a complete example that ties these together.

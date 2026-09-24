@@ -2,54 +2,58 @@
 
 Goal: run setup and teardown on components in a safe order.
 
-## Plugin vs component lifecycle
+## `@OnEnable` / `@OnDisable`
 
-You already know `JavaPlugin.onEnable` / `onDisable`. Components can opt into the same idea by implementing `Lifecycle`:
+Mark methods on a component (or any managed class) to run when the plugin starts or stops:
 
 ```java
 import dev.bukkitkit.api.Component;
-import dev.bukkitkit.api.Lifecycle;
+import dev.bukkitkit.api.OnDisable;
+import dev.bukkitkit.api.OnEnable;
 import dev.bukkitkit.api.Wire;
+import org.bukkit.plugin.java.JavaPlugin;
 
 @Component
-public final class PlayerManager implements Lifecycle {
+public final class PlayerManager {
 
     @Wire
-    private HelloPlugin plugin;
+    private JavaPlugin plugin;
 
-    @Override
-    public void onEnable() {
+    @OnEnable
+    public void start() {
         plugin.getLogger().info("PlayerManager onEnable");
         // open connections, load files, warm caches, ...
     }
 
-    @Override
-    public void onDisable() {
+    @OnDisable
+    public void stop() {
         plugin.getLogger().info("PlayerManager onDisable");
         // flush data, close resources, ...
     }
 }
 ```
 
-Both methods are optional — `Lifecycle` provides empty defaults, so you can override only what you need.
+Rules:
+
+- `public`, no parameters, return `void`
+- Not `static`
+- The enclosing class becomes managed automatically (no `@Component` required), same idea as `@OnEvent`
 
 ## Order
 
-- **Enable:** after every component is constructed and `@Wire` fields are set, BukkitKit calls `onEnable()` in **dependency order** (dependencies first)
-- **Disable:** `onDisable()` runs in **reverse** order, then BukkitKit unbinds
+- **Enable:** after every component is constructed and `@Wire` fields are set, BukkitKit calls `@OnEnable` methods in **dependency order** (dependencies first). Within one class, declaration order.
+- **Disable:** `@OnDisable` runs in **reverse** order (within a class: reverse declaration order), then BukkitKit unbinds
 
 So if `PlayerManager` depends on `PlayerRepository`, the repository enables first and disables last.
 
-## Relation to the plugin class
-
-Typical timeline:
+## Timeline
 
 1. BukkitKit constructs and wires all components
-2. Component `Lifecycle.onEnable()` methods run
-3. Your `JavaPlugin.onEnable()` body runs
-4. On stop: your `onDisable()` body, then schedules/listeners cleanup, then component `onDisable()` (via BukkitKit’s shutdown path)
+2. `@OnEnable` methods run
+3. `@Scheduled` tasks and `@OnEvent` listeners are registered
+4. On stop: schedules/listeners cleanup, then `@OnDisable`, then unbind
 
-Put “start this subsystem” logic on the component that owns it. Keep the plugin class as the thin entry point.
+Put “start this subsystem” logic on the component that owns it. The `@BukkitKit` marker stays metadata-only.
 
 ## Next
 

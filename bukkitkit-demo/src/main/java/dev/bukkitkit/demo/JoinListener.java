@@ -5,19 +5,21 @@ import dev.bukkitkit.api.Wire;
 
 import org.bukkit.event.player.PlayerJoinEvent;
 
+import java.util.logging.Logger;
+
 /**
  * Listener-only class — no {@code @Component}; {@code @OnEvent} makes it a managed singleton.
  */
 public final class JoinListener {
 
     @Wire
-    private DemoPlugin plugin;
+    private Logger logger;
 
     public JoinListener() {
     }
 
     @OnEvent
     public void onJoin(PlayerJoinEvent event) {
-        plugin.getLogger().info("Player joined: " + event.getPlayer().getName());
+        logger.info("Player joined: " + event.getPlayer().getName());
     }
 }

@@ -2,10 +2,13 @@ package dev.bukkitkit.processor;
 
 import dev.bukkitkit.api.BukkitKit;
 import dev.bukkitkit.api.Component;
+import dev.bukkitkit.api.OnDisable;
+import dev.bukkitkit.api.OnEnable;
 import dev.bukkitkit.api.OnEvent;
 import dev.bukkitkit.processor.analysis.ComponentAnalyzer;
 import dev.bukkitkit.processor.analysis.PluginAnalyzer;
 import dev.bukkitkit.processor.generate.BootstrapGenerator;
+import dev.bukkitkit.processor.generate.PluginYmlGenerator;
 import dev.bukkitkit.processor.inject.PluginInjector;
 import dev.bukkitkit.processor.inject.SingletonInjector;
 import dev.bukkitkit.processor.model.ComponentModel;
@@ -35,12 +38,14 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Discovers {@link Component} / {@link OnEvent} / {@link BukkitKit} types,
- * injects singletons and plugin wiring.
+ * Discovers {@link Component} / {@link OnEvent} / {@link OnEnable} / {@link OnDisable} /
+ * {@link BukkitKit} types, injects singletons and plugin wiring.
  */
 @SupportedAnnotationTypes({
         "dev.bukkitkit.api.Component",
         "dev.bukkitkit.api.OnEvent",
+        "dev.bukkitkit.api.OnEnable",
+        "dev.bukkitkit.api.OnDisable",
         "dev.bukkitkit.api.BukkitKit"
 })
 @SupportedSourceVersion(SourceVersion.RELEASE_25)
@@ -52,6 +57,7 @@ public final class ComponentProcessor extends AbstractProcessor {
     private SingletonInjector singletonInjector;
     private PluginInjector pluginInjector;
     private BootstrapGenerator generator;
+    private PluginYmlGenerator pluginYmlGenerator;
     private boolean processed;
 
     @Override
@@ -69,8 +75,9 @@ public final class ComponentProcessor extends AbstractProcessor {
         this.validator = new GraphValidator(processingEnv.getMessager());
         JavacContext javac = JavacContext.from(processingEnv);
         this.singletonInjector = new SingletonInjector(javac, processingEnv.getElementUtils());
-        this.pluginInjector = new PluginInjector(javac);
+        this.pluginInjector = new PluginInjector(javac, processingEnv.getElementUtils());
         this.generator = new BootstrapGenerator(processingEnv.getFiler());
+        this.pluginYmlGenerator = new PluginYmlGenerator(processingEnv.getFiler());
     }
 
     @Override
@@ -95,11 +102,6 @@ public final class ComponentProcessor extends AbstractProcessor {
             }
         }
 
-        Set<String> componentNames = new HashSet<>();
-        for (ComponentModel component : components) {
-            componentNames.add(component.typeName());
-        }
-
         List<PluginModel> plugins = new ArrayList<>();
         for (Element element : roundEnv.getElementsAnnotatedWith(BukkitKit.class)) {
             if (!(element instanceof TypeElement typeElement)) {
@@ -109,10 +111,20 @@ public final class ComponentProcessor extends AbstractProcessor {
                         element);
                 continue;
             }
-            PluginModel model = pluginAnalyzer.analyze(typeElement, componentNames, pluginTypeNames);
+            PluginModel model = pluginAnalyzer.analyze(typeElement);
             if (model != null) {
                 plugins.add(model);
             }
+        }
+
+        if (plugins.size() > 1) {
+            for (PluginModel plugin : plugins) {
+                processingEnv.getMessager().printMessage(
+                        Diagnostic.Kind.ERROR,
+                        "BukkitKit: only one @BukkitKit marker is allowed per compilation",
+                        plugin.type());
+            }
+            return false;
         }
 
         if (components.isEmpty() && plugins.isEmpty()) {
@@ -143,7 +155,7 @@ public final class ComponentProcessor extends AbstractProcessor {
 
         if (!ordered.isEmpty()) {
             try {
-                generator.write(ordered, pluginTypeNames);
+                generator.write(ordered);
             } catch (IOException ex) {
                 processingEnv.getMessager().printMessage(
                         Diagnostic.Kind.ERROR,
@@ -155,7 +167,8 @@ public final class ComponentProcessor extends AbstractProcessor {
         for (PluginModel plugin : plugins) {
             try {
                 pluginInjector.inject(plugin);
-            } catch (RuntimeException ex) {
+                pluginYmlGenerator.write(plugin);
+            } catch (RuntimeException | IOException ex) {
                 processingEnv.getMessager().printMessage(
                         Diagnostic.Kind.ERROR,
                         "BukkitKit: failed to wire plugin " + plugin.typeName()
@@ -171,7 +184,7 @@ public final class ComponentProcessor extends AbstractProcessor {
 
     /**
      * Types managed as singletons: {@code @Component} classes plus enclosing classes of
-     * {@code @OnEvent} methods. A type that is both is included once.
+     * {@code @OnEvent} / {@code @OnEnable} / {@code @OnDisable} methods.
      */
     private Map<String, TypeElement> collectManagedTypes(
             RoundEnvironment roundEnv,
@@ -189,11 +202,24 @@ public final class ComponentProcessor extends AbstractProcessor {
             managed.put(typeElement.getQualifiedName().toString(), typeElement);
         }
 
-        for (Element element : roundEnv.getElementsAnnotatedWith(OnEvent.class)) {
+        collectMethodHostedTypes(roundEnv, pluginTypeNames, managed, OnEvent.class, "@OnEvent");
+        collectMethodHostedTypes(roundEnv, pluginTypeNames, managed, OnEnable.class, "@OnEnable");
+        collectMethodHostedTypes(roundEnv, pluginTypeNames, managed, OnDisable.class, "@OnDisable");
+
+        return managed;
+    }
+
+    private void collectMethodHostedTypes(
+            RoundEnvironment roundEnv,
+            Set<String> pluginTypeNames,
+            Map<String, TypeElement> managed,
+            Class<? extends java.lang.annotation.Annotation> annotation,
+            String label) {
+        for (Element element : roundEnv.getElementsAnnotatedWith(annotation)) {
             if (!(element instanceof ExecutableElement)) {
                 processingEnv.getMessager().printMessage(
                         Diagnostic.Kind.ERROR,
-                        "BukkitKit: @OnEvent is only valid on methods",
+                        "BukkitKit: " + label + " is only valid on methods",
                         element);
                 continue;
             }
@@ -202,7 +228,7 @@ public final class ComponentProcessor extends AbstractProcessor {
                     || typeElement.getKind() != ElementKind.CLASS) {
                 processingEnv.getMessager().printMessage(
                         Diagnostic.Kind.ERROR,
-                        "BukkitKit: @OnEvent method must be declared on a class",
+                        "BukkitKit: " + label + " method must be declared on a class",
                         element);
                 continue;
             }
@@ -210,14 +236,12 @@ public final class ComponentProcessor extends AbstractProcessor {
             if (pluginTypeNames.contains(typeName)) {
                 processingEnv.getMessager().printMessage(
                         Diagnostic.Kind.ERROR,
-                        "BukkitKit: @OnEvent is not supported on @BukkitKit plugins; "
-                                + "move the handler to its own class",
+                        "BukkitKit: " + label + " is not supported on @BukkitKit markers; "
+                                + "move the handler to a component class",
                         element);
                 continue;
             }
             managed.putIfAbsent(typeName, typeElement);
         }
-
-        return managed;
     }
 }
