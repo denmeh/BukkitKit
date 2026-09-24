@@ -1,4 +1,4 @@
-# 9. Plugin metadata (`plugin.yml`)
+# 10. Plugin metadata (`plugin.yml`)
 
 Goal: keep `plugin.yml` complete from `@BukkitKit` and `@Command` — no hand-edited YAML for the common fields.
 
@@ -73,6 +73,7 @@ You now have the full starter toolkit:
 5. `@OnEnable` / `@OnDisable` for start/stop
 6. `@Scheduled` for timers
 7. `@Command` / `@TabComplete` for commands
-8. Full `plugin.yml` metadata (deps, permissions, …)
+8. `@Config` for typed settings + auto YAML
+9. Full `plugin.yml` metadata (deps, permissions, …)
 
 Use the [cheat sheet](./cheat-sheet) as a quick reference, and look at `bukkitkit-demo` in the repository for a complete example.

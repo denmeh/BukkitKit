@@ -1,6 +1,8 @@
 package dev.bukkitkit.processor.analysis;
 
 import dev.bukkitkit.api.Command;
+import dev.bukkitkit.api.Component;
+import dev.bukkitkit.api.Config;
 import dev.bukkitkit.api.OnDisable;
 import dev.bukkitkit.api.OnEnable;
 import dev.bukkitkit.api.OnEvent;
@@ -9,6 +11,7 @@ import dev.bukkitkit.api.TabComplete;
 import dev.bukkitkit.api.Wire;
 import dev.bukkitkit.processor.model.CommandMethod;
 import dev.bukkitkit.processor.model.ComponentModel;
+import dev.bukkitkit.processor.model.ComponentModel.ConfigMeta;
 import dev.bukkitkit.processor.model.ComponentModel.InjectionKind;
 import dev.bukkitkit.processor.model.ComponentModel.WiredField;
 import dev.bukkitkit.processor.model.EventMethod;
@@ -34,7 +37,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Validates and extracts dependency / schedule / event / command metadata from a managed type.
+ * Validates and extracts dependency / schedule / event / command / config metadata from a managed type.
  */
 public final class ComponentAnalyzer {
 
@@ -43,6 +46,11 @@ public final class ComponentAnalyzer {
     private static final String COMMAND_SENDER = "org.bukkit.command.CommandSender";
     private static final String STRING = "java.lang.String";
     private static final String LIST = "java.util.List";
+    private static final String BOOLEAN = "java.lang.Boolean";
+    private static final String INTEGER = "java.lang.Integer";
+    private static final String LONG = "java.lang.Long";
+    private static final String DOUBLE = "java.lang.Double";
+    private static final String FLOAT = "java.lang.Float";
 
     private final Elements elements;
     private final Types types;
@@ -55,20 +63,93 @@ public final class ComponentAnalyzer {
     }
 
     public ComponentModel analyze(TypeElement type) {
-        if (type.getKind() != ElementKind.CLASS) {
-            error(type, "@Component is only valid on concrete classes");
+        Config config = type.getAnnotation(Config.class);
+        if (config != null) {
+            return analyzeConfig(type, config);
+        }
+        return analyzeComponent(type);
+    }
+
+    private ComponentModel analyzeConfig(TypeElement type, Config config) {
+        if (type.getAnnotation(Component.class) != null) {
+            error(type, "Do not mix @Config and @Component on the same class");
             return null;
         }
-        if (type.getModifiers().contains(Modifier.ABSTRACT)) {
-            error(type, "@Component class must not be abstract");
+        if (!validateManagedClassShape(type, "@Config")) {
             return null;
         }
-        if (!type.getModifiers().contains(Modifier.PUBLIC)) {
-            error(type, "@Component class must be public");
+        if (config.file().isBlank()) {
+            error(type, "@Config file() must not be blank");
             return null;
         }
-        if (type.getNestingKind().isNested() && !type.getModifiers().contains(Modifier.STATIC)) {
-            error(type, "@Component nested class must be static");
+        if (!isSafeConfigFile(config.file())) {
+            error(type, "@Config file() must be a relative path under the plugin data folder "
+                    + "(no absolute paths or '..'): " + config.file());
+            return null;
+        }
+
+        if (hasWireFields(type)) {
+            error(type, "@Config classes must not use @Wire (inject the config into other classes instead)");
+            return null;
+        }
+        if (hasNonConfigHooks(type)) {
+            error(type, "@Config classes are data-only (no events, commands, schedules, or lifecycle hooks)");
+            return null;
+        }
+
+        List<ExecutableElement> publicConstructors = ElementFilter.constructorsIn(type.getEnclosedElements())
+                .stream()
+                .filter(ctor -> ctor.getModifiers().contains(Modifier.PUBLIC))
+                .toList();
+        if (publicConstructors.size() != 1 || !publicConstructors.getFirst().getParameters().isEmpty()) {
+            error(type, "@Config requires exactly one public no-arg constructor");
+            return null;
+        }
+
+        boolean anyField = false;
+        for (VariableElement field : ElementFilter.fieldsIn(type.getEnclosedElements())) {
+            if (field.getModifiers().contains(Modifier.STATIC)) {
+                continue;
+            }
+            if (!field.getModifiers().contains(Modifier.PUBLIC)) {
+                continue;
+            }
+            if (field.getModifiers().contains(Modifier.FINAL)) {
+                error(field, "@Config fields must not be final (BukkitKit writes loaded values into them)");
+                return null;
+            }
+            if (!isSupportedConfigType(field.asType())) {
+                error(field, "Unsupported @Config field type (use boolean/Boolean, int/Integer, "
+                        + "long/Long, double/Double, float/Float, String, or List<String>)");
+                return null;
+            }
+            anyField = true;
+        }
+        if (!anyField) {
+            error(type, "@Config class needs at least one public non-static non-final field");
+            return null;
+        }
+
+        return new ComponentModel(
+                type,
+                type.getQualifiedName().toString(),
+                type.getSimpleName().toString(),
+                elements.getPackageOf(type).getQualifiedName().toString(),
+                InjectionKind.CONSTRUCTOR,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                false,
+                new ConfigMeta(config.file(), config.persistent()));
+    }
+
+    private ComponentModel analyzeComponent(TypeElement type) {
+        if (!validateManagedClassShape(type, "@Component")) {
             return null;
         }
 
@@ -119,7 +200,8 @@ public final class ComponentAnalyzer {
                     List.copyOf(tabCompleteMethods),
                     List.copyOf(onEnableMethods),
                     List.copyOf(onDisableMethods),
-                    alreadyListener);
+                    alreadyListener,
+                    null);
         }
 
         List<String> dependencies = new ArrayList<>();
@@ -147,7 +229,107 @@ public final class ComponentAnalyzer {
                 List.copyOf(tabCompleteMethods),
                 List.copyOf(onEnableMethods),
                 List.copyOf(onDisableMethods),
-                alreadyListener);
+                alreadyListener,
+                null);
+    }
+
+    private boolean validateManagedClassShape(TypeElement type, String label) {
+        if (type.getKind() != ElementKind.CLASS) {
+            error(type, label + " is only valid on concrete classes");
+            return false;
+        }
+        if (type.getModifiers().contains(Modifier.ABSTRACT)) {
+            error(type, label + " class must not be abstract");
+            return false;
+        }
+        if (!type.getModifiers().contains(Modifier.PUBLIC)) {
+            error(type, label + " class must be public");
+            return false;
+        }
+        if (type.getNestingKind().isNested() && !type.getModifiers().contains(Modifier.STATIC)) {
+            error(type, label + " nested class must be static");
+            return false;
+        }
+        return true;
+    }
+
+    private boolean isSupportedConfigType(TypeMirror mirror) {
+        return switch (mirror.getKind()) {
+            case BOOLEAN, INT, LONG, DOUBLE, FLOAT -> true;
+            case DECLARED -> {
+                TypeElement element = (TypeElement) ((DeclaredType) mirror).asElement();
+                String name = element.getQualifiedName().toString();
+                if (STRING.equals(name)
+                        || BOOLEAN.equals(name)
+                        || INTEGER.equals(name)
+                        || LONG.equals(name)
+                        || DOUBLE.equals(name)
+                        || FLOAT.equals(name)) {
+                    yield true;
+                }
+                yield isStringListType(mirror);
+            }
+            default -> false;
+        };
+    }
+
+    private static boolean isSafeConfigFile(String file) {
+        if (file.indexOf('\0') >= 0) {
+            return false;
+        }
+        if (file.startsWith("/") || file.startsWith("\\")) {
+            return false;
+        }
+        if (file.length() >= 2 && Character.isLetter(file.charAt(0)) && file.charAt(1) == ':') {
+            return false;
+        }
+        String[] parts = file.split("[/\\\\]");
+        for (String part : parts) {
+            if (part.equals("..")) {
+                return false;
+            }
+        }
+        return !file.isBlank();
+    }
+
+    private boolean hasWireFields(TypeElement type) {
+        for (VariableElement field : ElementFilter.fieldsIn(type.getEnclosedElements())) {
+            if (field.getAnnotation(Wire.class) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasNonConfigHooks(TypeElement type) {
+        for (ExecutableElement method : ElementFilter.methodsIn(type.getEnclosedElements())) {
+            if (method.getAnnotation(Scheduled.class) != null
+                    || method.getAnnotation(OnEvent.class) != null
+                    || method.getAnnotation(Command.class) != null
+                    || method.getAnnotation(TabComplete.class) != null
+                    || method.getAnnotation(OnEnable.class) != null
+                    || method.getAnnotation(OnDisable.class) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isStringListType(TypeMirror mirror) {
+        if (mirror.getKind() != TypeKind.DECLARED) {
+            return false;
+        }
+        DeclaredType declared = (DeclaredType) mirror;
+        TypeElement list = elements.getTypeElement(LIST);
+        TypeElement string = elements.getTypeElement(STRING);
+        if (list == null || string == null) {
+            return false;
+        }
+        if (!types.isSameType(types.erasure(mirror), types.erasure(list.asType()))) {
+            return false;
+        }
+        List<? extends TypeMirror> args = declared.getTypeArguments();
+        return args.size() == 1 && types.isSameType(args.getFirst(), string.asType());
     }
 
     private boolean implementsListener(TypeElement type) {

@@ -9,7 +9,7 @@ BukkitKit gives you a clearer way to structure the same work:
 1. Mark a plain class with `@BukkitKit` — name, version, api version (plus depend, permissions, …); no `JavaPlugin` or `plugin.yml` by hand
 2. Put game logic in small `@Component` classes
 3. Ask for what you need with `@Wire`
-4. Optionally use `@OnEvent`, `@Command`, `@OnEnable` / `@OnDisable`, and `@Scheduled` for listeners, commands, startup hooks, and repeating work
+4. Optionally use `@OnEvent`, `@Command`, `@Config`, `@OnEnable` / `@OnDisable`, and `@Scheduled` for listeners, commands, settings, startup hooks, and repeating work
 
 You still write normal Paper/Bukkit code. BukkitKit does not replace the Minecraft API — it organizes how your classes connect.
 

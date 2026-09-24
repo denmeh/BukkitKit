@@ -50,6 +50,26 @@ public final class GraphValidator {
         }
         valid &= validateCycles(components, byName, componentNames);
         valid &= validateCommands(components);
+        valid &= validateConfigFiles(components);
+        return valid;
+    }
+
+    private boolean validateConfigFiles(List<ComponentModel> components) {
+        Map<String, ComponentModel> byFile = new LinkedHashMap<>();
+        boolean valid = true;
+        for (ComponentModel component : components) {
+            if (!component.isConfig() || !component.config().persistent()) {
+                continue;
+            }
+            String file = component.config().file();
+            ComponentModel previous = byFile.putIfAbsent(file, component);
+            if (previous != null) {
+                error(component.type(),
+                        "Duplicate @Config file: " + file
+                                + " (already used by " + previous.typeName() + ")");
+                valid = false;
+            }
+        }
         return valid;
     }
 
@@ -157,7 +177,7 @@ public final class GraphValidator {
             if (rootTypeNames.contains(dep)) {
                 error(component.type(),
                         "Unresolved dependency " + dep + " (parameter/field " + i + "). "
-                                + "Declare @Component (or @OnEvent/@Command/@OnEnable/@OnDisable on the type), "
+                                + "Declare @Component/@Config (or @OnEvent/@Command/@OnEnable/@OnDisable on the type), "
                                 + "or use a built-in type (JavaPlugin, Logger, …).");
                 valid = false;
             }

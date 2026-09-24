@@ -74,12 +74,14 @@ Or inject `Logger` when you only need logging.
 
 | Do | Don’t |
 |----|--------|
-| `@Wire` on instance fields of components (including `@OnEvent` / `@Command` hosts) | `@Wire` on the `@BukkitKit` marker |
-| `@Wire` `JavaPlugin` / `Logger` / other built-ins | `@Wire` the `@BukkitKit` marker type |
+| `@Wire` on instance fields of managed classes (`@Component`, `@OnEvent` / `@Command` hosts, …) | `@Wire` on the `@BukkitKit` marker or on a `@Config` class |
+| `@Wire` another `@Component`, a `@Config`, or a [built-in](./built-ins) | `@Wire` the `@BukkitKit` marker type |
 | Instance `@Wire` fields only | `@Wire` on `static` or `final` fields |
-| Public no-arg constructor on components that use `@Wire` | Hide the only constructor or make it package-private only |
-| Depend on other `@Component` types or [built-ins](./built-ins) | Expect arbitrary `new`-only classes to appear magically |
+| Public no-arg constructor on classes that use `@Wire` | Hide the only constructor or make it package-private only |
+| Depend on managed types BukkitKit knows about | Expect arbitrary `new`-only classes to appear magically |
 
 ## Next
 
 [Built-in services](./built-ins) — inject `Server`, `Logger`, and other Paper objects BukkitKit provides for you.
+
+Later in the tutorial: [Config](./config) — typed settings you can `@Wire` like a component.

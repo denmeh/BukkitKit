@@ -79,4 +79,4 @@ Return type must be `List<String>`.
 
 ## Next
 
-[Plugin metadata](./plugin-yml) — depend, softdepend, permissions, and the rest of `plugin.yml`.
+[Config](./config) — typed settings in Java with auto-generated `config.yml`.

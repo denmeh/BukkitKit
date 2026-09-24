@@ -20,7 +20,8 @@ public record ComponentModel(
         List<TabCompleteMethod> tabCompleteMethods,
         List<LifecycleMethod> onEnableMethods,
         List<LifecycleMethod> onDisableMethods,
-        boolean alreadyListener
+        boolean alreadyListener,
+        ConfigMeta config
 ) {
 
     public enum InjectionKind {
@@ -29,6 +30,16 @@ public record ComponentModel(
     }
 
     public record WiredField(String fieldName, String typeName) {
+    }
+
+    /**
+     * Present when the type is annotated with {@code @Config}.
+     */
+    public record ConfigMeta(String file, boolean persistent) {
+    }
+
+    public boolean isConfig() {
+        return config != null;
     }
 
     public boolean hasEvents() {

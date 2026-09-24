@@ -9,9 +9,12 @@ import java.lang.annotation.Target;
 /**
  * Marks a field for BukkitKit dependency injection.
  * <p>
- * Usable on {@link Component} classes and {@link BukkitKit} plugins.
+ * Usable on managed classes ({@link Component}, or classes hosting {@link OnEvent} /
+ * {@link Command} / lifecycle methods). Inject another managed type ({@link Component},
+ * {@link Config}) or a built-in ({@code JavaPlugin}, {@code Logger}, …).
  * Wired fields must not be {@code static} or {@code final}.
- * Components that use {@code @Wire} must expose a single public no-arg constructor.
+ * Classes that use {@code @Wire} must expose a single public no-arg constructor.
+ * {@link Config} classes themselves must not declare {@code @Wire} fields.
  */
 @Documented
 @Target(ElementType.FIELD)

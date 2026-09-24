@@ -613,4 +613,160 @@ class ComponentProcessorTest {
                 .contentsAsUtf8String()
                 .contains("FieldWire.set(this.service, \"repository\", this.repository)");
     }
+
+    @Test
+    void generatesConfigBindCall() {
+        JavaFileObject config = JavaFileObjects.forSourceLines(
+                "demo.DemoConfig",
+                "package demo;",
+                "import dev.bukkitkit.api.Config;",
+                "@Config",
+                "public class DemoConfig {",
+                "  public String welcomeMessage = \"Hi\";",
+                "  public DemoConfig() {}",
+                "}");
+        JavaFileObject service = JavaFileObjects.forSourceLines(
+                "demo.Greeter",
+                "package demo;",
+                "import dev.bukkitkit.api.Component;",
+                "import dev.bukkitkit.api.Wire;",
+                "@Component",
+                "public class Greeter {",
+                "  @Wire private DemoConfig config;",
+                "  public Greeter() {}",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(config, service);
+
+        assertThat(compilation).succeeded();
+        assertThat(compilation)
+                .generatedSourceFile("demo.BukkitKitInit")
+                .contentsAsUtf8String()
+                .contains("this.demoConfig = new DemoConfig()");
+        assertThat(compilation)
+                .generatedSourceFile("demo.BukkitKitInit")
+                .contentsAsUtf8String()
+                .contains("KitConfig.bind(s.javaPlugin(), this.demoConfig, \"config.yml\")");
+    }
+
+    @Test
+    void skipsBindWhenConfigNotPersistent() {
+        JavaFileObject config = JavaFileObjects.forSourceLines(
+                "demo.MemoryConfig",
+                "package demo;",
+                "import dev.bukkitkit.api.Config;",
+                "@Config(persistent = false)",
+                "public class MemoryConfig {",
+                "  public int value = 1;",
+                "  public MemoryConfig() {}",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(config);
+
+        assertThat(compilation).succeeded();
+        assertThat(compilation)
+                .generatedSourceFile("demo.BukkitKitInit")
+                .contentsAsUtf8String()
+                .contains("this.memoryConfig = new MemoryConfig()");
+        assertThat(compilation)
+                .generatedSourceFile("demo.BukkitKitInit")
+                .contentsAsUtf8String()
+                .doesNotContain("KitConfig.bind");
+    }
+
+    @Test
+    void failsOnDuplicateConfigFiles() {
+        JavaFileObject first = JavaFileObjects.forSourceLines(
+                "demo.One",
+                "package demo;",
+                "import dev.bukkitkit.api.Config;",
+                "@Config(file = \"shared.yml\")",
+                "public class One {",
+                "  public int a = 1;",
+                "  public One() {}",
+                "}");
+        JavaFileObject second = JavaFileObjects.forSourceLines(
+                "demo.Two",
+                "package demo;",
+                "import dev.bukkitkit.api.Config;",
+                "@Config(file = \"shared.yml\")",
+                "public class Two {",
+                "  public int b = 2;",
+                "  public Two() {}",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(first, second);
+
+        assertThat(compilation).failed();
+        assertThat(compilation).hadErrorContaining("Duplicate @Config file");
+    }
+
+    @Test
+    void failsWhenConfigMixedWithComponent() {
+        JavaFileObject source = JavaFileObjects.forSourceLines(
+                "demo.Broken",
+                "package demo;",
+                "import dev.bukkitkit.api.Component;",
+                "import dev.bukkitkit.api.Config;",
+                "@Config",
+                "@Component",
+                "public class Broken {",
+                "  public int value = 1;",
+                "  public Broken() {}",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(source);
+
+        assertThat(compilation).failed();
+        assertThat(compilation).hadErrorContaining("Do not mix @Config and @Component");
+    }
+
+    @Test
+    void failsOnUnsupportedConfigFieldType() {
+        JavaFileObject source = JavaFileObjects.forSourceLines(
+                "demo.Broken",
+                "package demo;",
+                "import dev.bukkitkit.api.Config;",
+                "import java.util.Map;",
+                "@Config",
+                "public class Broken {",
+                "  public Map<String, String> values;",
+                "  public Broken() {}",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(source);
+
+        assertThat(compilation).failed();
+        assertThat(compilation).hadErrorContaining("Unsupported @Config field type");
+    }
+
+    @Test
+    void failsOnUnsafeConfigFilePath() {
+        JavaFileObject source = JavaFileObjects.forSourceLines(
+                "demo.Broken",
+                "package demo;",
+                "import dev.bukkitkit.api.Config;",
+                "@Config(file = \"../escape.yml\")",
+                "public class Broken {",
+                "  public int value = 1;",
+                "  public Broken() {}",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(source);
+
+        assertThat(compilation).failed();
+        assertThat(compilation).hadErrorContaining("relative path");
+    }
 }

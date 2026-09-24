@@ -3,6 +3,7 @@ package dev.bukkitkit.processor;
 import dev.bukkitkit.api.BukkitKit;
 import dev.bukkitkit.api.Command;
 import dev.bukkitkit.api.Component;
+import dev.bukkitkit.api.Config;
 import dev.bukkitkit.api.OnDisable;
 import dev.bukkitkit.api.OnEnable;
 import dev.bukkitkit.api.OnEvent;
@@ -37,12 +38,13 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Discovers {@link Component} / {@link OnEvent} / {@link Command} / {@link OnEnable} /
- * {@link OnDisable} / {@link BukkitKit} types and generates bootstrap + plugin entry sources
- * via {@code Filer}.
+ * Discovers {@link Component} / {@link Config} / {@link OnEvent} / {@link Command} /
+ * {@link OnEnable} / {@link OnDisable} / {@link BukkitKit} types and generates
+ * bootstrap + plugin entry sources via {@code Filer}.
  */
 @SupportedAnnotationTypes({
         "dev.bukkitkit.api.Component",
+        "dev.bukkitkit.api.Config",
         "dev.bukkitkit.api.OnEvent",
         "dev.bukkitkit.api.Command",
         "dev.bukkitkit.api.TabComplete",
@@ -168,8 +170,8 @@ public final class ComponentProcessor extends AbstractProcessor {
     }
 
     /**
-     * Types managed as singletons: {@code @Component} classes plus enclosing classes of
-     * {@code @OnEvent} / {@code @Command} / {@code @TabComplete} / {@code @OnEnable} /
+     * Types managed as singletons: {@code @Component} / {@code @Config} classes plus enclosing
+     * classes of {@code @OnEvent} / {@code @Command} / {@code @TabComplete} / {@code @OnEnable} /
      * {@code @OnDisable} methods.
      */
     private Map<String, TypeElement> collectManagedTypes(
@@ -186,6 +188,25 @@ public final class ComponentProcessor extends AbstractProcessor {
                 continue;
             }
             managed.put(typeElement.getQualifiedName().toString(), typeElement);
+        }
+
+        for (Element element : roundEnv.getElementsAnnotatedWith(Config.class)) {
+            if (!(element instanceof TypeElement typeElement)) {
+                processingEnv.getMessager().printMessage(
+                        Diagnostic.Kind.ERROR,
+                        "BukkitKit: @Config is only valid on types",
+                        element);
+                continue;
+            }
+            String typeName = typeElement.getQualifiedName().toString();
+            if (pluginTypeNames.contains(typeName)) {
+                processingEnv.getMessager().printMessage(
+                        Diagnostic.Kind.ERROR,
+                        "BukkitKit: @Config is not supported on @BukkitKit markers",
+                        element);
+                continue;
+            }
+            managed.putIfAbsent(typeName, typeElement);
         }
 
         collectMethodHostedTypes(roundEnv, pluginTypeNames, managed, OnEvent.class, "@OnEvent");

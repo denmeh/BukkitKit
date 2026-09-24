@@ -9,7 +9,7 @@ BukkitKit gives you a clearer way to structure the same work:
 1. Mark a plain class with `@BukkitKit` (name, version, api version, and optional depend / permissions / … — no `JavaPlugin` or `plugin.yml` by hand)
 2. Put game logic in small `@Component` classes
 3. Ask for what you need with `@Wire`
-4. Optionally use `@OnEvent`, `@Command`, `@OnEnable` / `@OnDisable`, and `@Scheduled` for listeners, commands, startup hooks, and repeating work
+4. Optionally use `@OnEvent`, `@Command`, `@Config`, `@OnEnable` / `@OnDisable`, and `@Scheduled` for listeners, commands, settings, startup hooks, and repeating work
 
 You still write normal Paper/Bukkit code. BukkitKit does not replace the Minecraft API — it organizes how your classes connect.
 
@@ -32,6 +32,7 @@ Follow the pages in order. Each step builds on the last:
 | [Lifecycle](./lifecycle) | Run code on enable / disable |
 | [Scheduling](./scheduling) | Repeat work with `@Scheduled` |
 | [Commands](./commands) | Register `/commands` with `@Command` |
+| [Config](./config) | Typed settings with `@Config` + auto `config.yml` |
 | [Plugin metadata](./plugin-yml) | Depend, permissions, and the rest of `plugin.yml` |
 
 When you need a quick reminder later, use the [cheat sheet](./cheat-sheet).

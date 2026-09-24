@@ -40,6 +40,8 @@ public final class BootstrapGenerator {
             ClassName.get("dev.bukkitkit.paper", "KitBootstrap");
     private static final ClassName PLATFORM_SERVICES =
             ClassName.get("dev.bukkitkit.paper", "PlatformServices");
+    private static final ClassName KIT_CONFIG =
+            ClassName.get("dev.bukkitkit.paper", "KitConfig");
     private static final ClassName BUKKIT_KIT_EXCEPTION =
             ClassName.get("dev.bukkitkit.api", "BukkitKitException");
     private static final ClassName FIELD_WIRE =
@@ -128,6 +130,13 @@ public final class BootstrapGenerator {
                         field,
                         type,
                         constructorArgs(component, instanceFields));
+            }
+            if (component.isConfig() && component.config().persistent()) {
+                method.addStatement(
+                        "$T.bind(s.javaPlugin(), this.$L, $S)",
+                        KIT_CONFIG,
+                        field,
+                        component.config().file());
             }
         }
 

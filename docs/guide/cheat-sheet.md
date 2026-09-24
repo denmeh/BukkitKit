@@ -33,7 +33,7 @@ On a concrete class. One singleton instance per plugin. Use a public no-arg cons
 
 ## `@Wire`
 
-On an instance field of a **component**. Injects another component or a [built-in](./built-ins) (`JavaPlugin`, `Logger`, …). Not `static` or `final`. Not allowed on the `@BukkitKit` marker (and the marker type itself is not injectable).
+On an instance field of a **managed** class (`@Component`, or a class with `@OnEvent` / `@Command` / …). Injects another managed type (`@Component`, `@Config`) or a [built-in](./built-ins) (`JavaPlugin`, `Logger`, …). Not `static` or `final`. Not allowed on the `@BukkitKit` marker or on `@Config` classes themselves.
 
 ## `@OnEvent`
 
@@ -54,6 +54,17 @@ On a `public` method. Declares a plugin command (also written to `plugin.yml`) a
 On a `public` method returning `List<String>`. Value is the matching `@Command` name.
 
 Signatures: `(CommandSender, String[])`, `(CommandSender, String alias, String[])`.
+
+## `@Config`
+
+On a concrete public class with a public no-arg constructor. Defines typed settings; BukkitKit creates one singleton and (when `persistent`, default `true`) binds it to a YAML file under the plugin data folder.
+
+- Field name = YAML key
+- Fields must be public, non-`static`, non-`final`
+- Types: `boolean`/`Boolean`, `int`/`Integer`, `long`/`Long`, `double`/`Double`, `float`/`Float`, `String`, `List<String>`
+- Optional: `file` (default `config.yml`), `persistent` (`false` = Java defaults only, no disk)
+- Do not mix with `@Component`, `@Wire`, events, commands, schedules, or lifecycle
+- Inject with `@Wire` into other managed classes
 
 ## `@OnEnable` / `@OnDisable`
 
