@@ -85,7 +85,10 @@ const agents = [
 
 .ask-agents-label {
   margin: 0 0 10px;
-  font-size: 13px;
+  font-family: var(--bk-mono, ui-monospace, monospace);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--vp-c-text-2);
 }
 
@@ -100,20 +103,24 @@ const agents = [
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-  border-radius: 8px;
+  border-radius: 0;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
   border: 1px solid var(--vp-c-divider);
   background: var(--vp-c-bg-soft);
   color: var(--vp-c-text-1);
-  font-size: 14px;
+  font-family: var(--bk-mono, ui-monospace, monospace);
+  font-size: 13px;
   font-weight: 500;
+  letter-spacing: 0.04em;
   line-height: 1;
   text-decoration: none;
-  transition: border-color 0.15s, background-color 0.15s;
+  transition: border-color 0.15s, background-color 0.15s, color 0.15s;
 }
 
 .ask-agent-btn:hover {
   border-color: var(--vp-c-brand-1);
-  background: var(--vp-c-bg-mute);
+  background: var(--bk-accent-subtle, rgba(232, 168, 74, 0.08));
+  color: var(--vp-c-brand-2);
 }
 
 .ask-agent-btn svg {
