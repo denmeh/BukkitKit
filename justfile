@@ -22,3 +22,7 @@ verify:
 # Clean all modules
 clean:
     {{mvnw}} clean
+
+# Preview docs site (VitePress)
+docs:
+    npm --prefix docs run dev
