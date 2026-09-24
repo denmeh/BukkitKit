@@ -1,10 +1,12 @@
 package dev.bukkitkit.processor.analysis;
 
+import dev.bukkitkit.api.OnEvent;
 import dev.bukkitkit.api.Scheduled;
 import dev.bukkitkit.api.Wire;
 import dev.bukkitkit.processor.model.ComponentModel;
 import dev.bukkitkit.processor.model.ComponentModel.InjectionKind;
 import dev.bukkitkit.processor.model.ComponentModel.WiredField;
+import dev.bukkitkit.processor.model.EventMethod;
 import dev.bukkitkit.processor.model.ScheduledMethod;
 
 import javax.annotation.processing.Messager;
@@ -18,20 +20,26 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
 import javax.lang.model.util.Elements;
+import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Validates and extracts dependency / schedule metadata from a {@code @Component} type.
+ * Validates and extracts dependency / schedule / event metadata from a {@code @Component} type.
  */
 public final class ComponentAnalyzer {
 
+    private static final String BUKKIT_EVENT = "org.bukkit.event.Event";
+    private static final String BUKKIT_LISTENER = "org.bukkit.event.Listener";
+
     private final Elements elements;
+    private final Types types;
     private final Messager messager;
 
-    public ComponentAnalyzer(Elements elements, Messager messager) {
+    public ComponentAnalyzer(Elements elements, Types types, Messager messager) {
         this.elements = elements;
+        this.types = types;
         this.messager = messager;
     }
 
@@ -55,6 +63,10 @@ public final class ComponentAnalyzer {
 
         List<WiredField> wiredFields = readWiredFields(type);
         List<ScheduledMethod> scheduledMethods = readScheduledMethods(type);
+        List<EventMethod> eventMethods = readEventMethods(type);
+        boolean alreadyListener = implementsListener(type);
+        boolean needsListener = !eventMethods.isEmpty() && !alreadyListener;
+
         List<ExecutableElement> publicConstructors = ElementFilter.constructorsIn(type.getEnclosedElements())
                 .stream()
                 .filter(ctor -> ctor.getModifiers().contains(Modifier.PUBLIC))
@@ -87,7 +99,9 @@ public final class ComponentAnalyzer {
                     InjectionKind.FIELD,
                     List.copyOf(dependencies),
                     List.copyOf(wiredFields),
-                    List.copyOf(scheduledMethods));
+                    List.copyOf(scheduledMethods),
+                    List.copyOf(eventMethods),
+                    needsListener);
         }
 
         List<String> dependencies = new ArrayList<>();
@@ -109,7 +123,17 @@ public final class ComponentAnalyzer {
                 InjectionKind.CONSTRUCTOR,
                 List.copyOf(dependencies),
                 List.of(),
-                List.copyOf(scheduledMethods));
+                List.copyOf(scheduledMethods),
+                List.copyOf(eventMethods),
+                needsListener);
+    }
+
+    private boolean implementsListener(TypeElement type) {
+        TypeElement listener = elements.getTypeElement(BUKKIT_LISTENER);
+        if (listener == null) {
+            return false;
+        }
+        return types.isAssignable(type.asType(), listener.asType());
     }
 
     private List<WiredField> readWiredFields(TypeElement type) {
@@ -184,6 +208,55 @@ public final class ComponentAnalyzer {
                     annotation.unit(),
                     annotation.async(),
                     booleanReturn));
+        }
+        return methods;
+    }
+
+    private List<EventMethod> readEventMethods(TypeElement type) {
+        List<EventMethod> methods = new ArrayList<>();
+        TypeElement eventBase = elements.getTypeElement(BUKKIT_EVENT);
+        for (ExecutableElement method : ElementFilter.methodsIn(type.getEnclosedElements())) {
+            OnEvent annotation = method.getAnnotation(OnEvent.class);
+            if (annotation == null) {
+                continue;
+            }
+            if (eventBase == null) {
+                error(method, "@OnEvent requires org.bukkit.event.Event on the classpath (Paper/Bukkit API)");
+                continue;
+            }
+            if (method.getModifiers().contains(Modifier.STATIC)) {
+                error(method, "@OnEvent method must not be static");
+                continue;
+            }
+            if (!method.getModifiers().contains(Modifier.PUBLIC)) {
+                error(method, "@OnEvent method must be public");
+                continue;
+            }
+            if (method.getReturnType().getKind() != TypeKind.VOID) {
+                error(method, "@OnEvent method must return void");
+                continue;
+            }
+            if (method.getParameters().size() != 1) {
+                error(method, "@OnEvent method must take exactly one Event parameter");
+                continue;
+            }
+            VariableElement parameter = method.getParameters().getFirst();
+            TypeMirror paramType = parameter.asType();
+            if (paramType.getKind() != TypeKind.DECLARED) {
+                error(parameter, "@OnEvent parameter must be a Bukkit Event type");
+                continue;
+            }
+            if (!types.isAssignable(paramType, eventBase.asType())) {
+                error(parameter, "@OnEvent parameter must be a subtype of org.bukkit.event.Event");
+                continue;
+            }
+            TypeElement eventType = (TypeElement) ((DeclaredType) paramType).asElement();
+            methods.add(new EventMethod(
+                    method,
+                    method.getSimpleName().toString(),
+                    eventType.getQualifiedName().toString(),
+                    annotation.priority(),
+                    annotation.ignoreCancelled()));
         }
         return methods;
     }

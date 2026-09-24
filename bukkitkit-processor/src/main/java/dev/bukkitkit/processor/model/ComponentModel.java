@@ -14,7 +14,9 @@ public record ComponentModel(
         InjectionKind kind,
         List<String> dependencies,
         List<WiredField> wiredFields,
-        List<ScheduledMethod> scheduledMethods
+        List<ScheduledMethod> scheduledMethods,
+        List<EventMethod> eventMethods,
+        boolean needsListener
 ) {
 
     public enum InjectionKind {
@@ -23,5 +25,9 @@ public record ComponentModel(
     }
 
     public record WiredField(String fieldName, String typeName) {
+    }
+
+    public boolean hasEvents() {
+        return !eventMethods.isEmpty();
     }
 }

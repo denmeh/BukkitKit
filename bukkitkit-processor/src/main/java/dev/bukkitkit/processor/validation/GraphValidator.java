@@ -110,7 +110,8 @@ public final class GraphValidator {
             if (rootTypeNames.contains(dep)) {
                 error(component.type(),
                         "Unresolved dependency " + dep + " (parameter/field " + i + "). "
-                                + "Declare @Component, use a built-in type, or wire the @BukkitKit plugin type.");
+                                + "Declare @Component (or @OnEvent on the type), use a built-in type, "
+                                + "or wire the @BukkitKit plugin type.");
                 valid = false;
             }
         }

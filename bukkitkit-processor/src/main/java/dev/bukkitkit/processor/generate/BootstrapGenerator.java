@@ -5,6 +5,7 @@ import dev.bukkitkit.processor.builtins.BuiltInTypes;
 import dev.bukkitkit.processor.model.ComponentModel;
 import dev.bukkitkit.processor.model.ComponentModel.InjectionKind;
 import dev.bukkitkit.processor.model.ComponentModel.WiredField;
+import dev.bukkitkit.processor.model.EventMethod;
 import dev.bukkitkit.processor.model.ScheduledMethod;
 
 import com.squareup.javapoet.ClassName;
@@ -35,6 +36,10 @@ public final class BootstrapGenerator {
             ClassName.get("dev.bukkitkit.api", "Lifecycles");
     private static final ClassName BUKKIT_KIT_EXCEPTION =
             ClassName.get("dev.bukkitkit.api", "BukkitKitException");
+    private static final ClassName BUKKIT_EVENT_PRIORITY =
+            ClassName.get("org.bukkit.event", "EventPriority");
+    private static final ClassName HANDLER_LIST =
+            ClassName.get("org.bukkit.event", "HandlerList");
 
     private final Filer filer;
     private Set<String> pluginTypeNames = Set.of();
@@ -120,7 +125,31 @@ public final class BootstrapGenerator {
             }
         }
 
+        for (ComponentModel component : ordered) {
+            ClassName type = ClassName.bestGuess(component.typeName());
+            for (EventMethod event : component.eventMethods()) {
+                emitEvent(method, type, event);
+            }
+        }
+
         return method.build();
+    }
+
+    private void emitEvent(MethodSpec.Builder method, ClassName type, EventMethod event) {
+        ClassName eventType = ClassName.bestGuess(event.eventTypeName());
+        method.addStatement(
+                "s.pluginManager().registerEvent($T.class, $T.$L, $T.$L,"
+                        + " (listener, e) -> $T.$L.$L(($T) e), s.javaPlugin(), $L)",
+                eventType,
+                type,
+                BukkitKitSymbols.INSTANCE_FIELD,
+                BUKKIT_EVENT_PRIORITY,
+                event.priority().name(),
+                type,
+                BukkitKitSymbols.INSTANCE_FIELD,
+                event.methodName(),
+                eventType,
+                event.ignoreCancelled());
     }
 
     private void emitSchedule(MethodSpec.Builder method, ClassName type, ScheduledMethod scheduled) {
@@ -205,6 +234,21 @@ public final class BootstrapGenerator {
         MethodSpec.Builder method = MethodSpec.methodBuilder("stop")
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PUBLIC);
+
+        for (int i = ordered.size() - 1; i >= 0; i--) {
+            ComponentModel component = ordered.get(i);
+            if (!component.hasEvents()) {
+                continue;
+            }
+            ClassName type = ClassName.bestGuess(component.typeName());
+            method.beginControlFlow("if ($T.$L != null)", type, BukkitKitSymbols.INSTANCE_FIELD);
+            method.addStatement(
+                    "$T.unregisterAll($T.$L)",
+                    HANDLER_LIST,
+                    type,
+                    BukkitKitSymbols.INSTANCE_FIELD);
+            method.endControlFlow();
+        }
 
         for (int i = ordered.size() - 1; i >= 0; i--) {
             ComponentModel component = ordered.get(i);

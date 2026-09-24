@@ -189,6 +189,113 @@ class ComponentProcessorTest {
     }
 
     @Test
+    void generatesEventRegistration() {
+        JavaFileObject joinEvent = JavaFileObjects.forSourceLines(
+                "demo.JoinEvent",
+                "package demo;",
+                "import org.bukkit.event.Event;",
+                "public class JoinEvent extends Event {",
+                "}");
+        JavaFileObject listener = JavaFileObjects.forSourceLines(
+                "demo.JoinListener",
+                "package demo;",
+                "import dev.bukkitkit.api.EventPriority;",
+                "import dev.bukkitkit.api.OnEvent;",
+                "public class JoinListener {",
+                "  public JoinListener() {}",
+                "  @OnEvent(priority = EventPriority.HIGH, ignoreCancelled = true)",
+                "  public void onJoin(JoinEvent event) {}",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(joinEvent, listener);
+
+        assertThat(compilation).succeeded();
+        assertThat(compilation)
+                .generatedSourceFile("demo.BukkitKitInit")
+                .contentsAsUtf8String()
+                .contains("pluginManager().registerEvent");
+        assertThat(compilation)
+                .generatedSourceFile("demo.BukkitKitInit")
+                .contentsAsUtf8String()
+                .contains("EventPriority.HIGH");
+        assertThat(compilation)
+                .generatedSourceFile("demo.BukkitKitInit")
+                .contentsAsUtf8String()
+                .contains("HandlerList.unregisterAll");
+        assertThat(compilation)
+                .generatedSourceFile("demo.BukkitKitInit")
+                .contentsAsUtf8String()
+                .contains("JoinListener.__bukkitKit_instance != null");
+        assertThat(compilation)
+                .generatedSourceFile("demo.BukkitKitInit")
+                .contentsAsUtf8String()
+                .contains("JoinListener.__bukkitKit_bind");
+    }
+
+    @Test
+    void componentWithOnEventIsBoundOnce() {
+        JavaFileObject joinEvent = JavaFileObjects.forSourceLines(
+                "demo.JoinEvent",
+                "package demo;",
+                "import org.bukkit.event.Event;",
+                "public class JoinEvent extends Event {",
+                "}");
+        JavaFileObject both = JavaFileObjects.forSourceLines(
+                "demo.Both",
+                "package demo;",
+                "import dev.bukkitkit.api.Component;",
+                "import dev.bukkitkit.api.OnEvent;",
+                "@Component",
+                "public class Both {",
+                "  public Both() {}",
+                "  @OnEvent",
+                "  public void onJoin(JoinEvent event) {}",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(joinEvent, both);
+
+        assertThat(compilation).succeeded();
+        var initFile = compilation.generatedSourceFile("demo.BukkitKitInit").orElseThrow();
+        String init;
+        try {
+            init = initFile.getCharContent(true).toString();
+        } catch (java.io.IOException ex) {
+            throw new AssertionError(ex);
+        }
+        int binds = init.split("Both.__bukkitKit_bind", -1).length - 1;
+        org.junit.jupiter.api.Assertions.assertEquals(1, binds);
+    }
+
+    @Test
+    void failsOnInvalidOnEventSignature() {
+        JavaFileObject badEvent = JavaFileObjects.forSourceLines(
+                "demo.NotAnEvent",
+                "package demo;",
+                "public class NotAnEvent {",
+                "}");
+        JavaFileObject source = JavaFileObjects.forSourceLines(
+                "demo.BadListener",
+                "package demo;",
+                "import dev.bukkitkit.api.OnEvent;",
+                "public class BadListener {",
+                "  public BadListener() {}",
+                "  @OnEvent",
+                "  public void onThing(NotAnEvent event) {}",
+                "}");
+
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new ComponentProcessor())
+                .compile(badEvent, source);
+
+        assertThat(compilation).failed();
+        assertThat(compilation).hadErrorContaining("subtype of org.bukkit.event.Event");
+    }
+
+    @Test
     void failsOnUnresolvedLocalDependency() {
         JavaFileObject missing = JavaFileObjects.forSourceLines(
                 "demo.NotAComponent",

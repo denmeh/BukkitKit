@@ -151,6 +151,10 @@ public final class JavaC {
         return select(id(type), member);
     }
 
+    public JCExpression qualIdent(Symbol symbol) {
+        return maker.QualIdent(symbol);
+    }
+
     public JCExpression classLit(JCExpression typeExpr) {
         return select(typeExpr, names._class);
     }

@@ -2,6 +2,7 @@ package dev.bukkitkit.processor;
 
 import dev.bukkitkit.api.BukkitKit;
 import dev.bukkitkit.api.Component;
+import dev.bukkitkit.api.OnEvent;
 import dev.bukkitkit.processor.analysis.ComponentAnalyzer;
 import dev.bukkitkit.processor.analysis.PluginAnalyzer;
 import dev.bukkitkit.processor.generate.BootstrapGenerator;
@@ -20,20 +21,26 @@ import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.tools.Diagnostic;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
- * Discovers {@link Component} / {@link BukkitKit} types, injects singletons and plugin wiring.
+ * Discovers {@link Component} / {@link OnEvent} / {@link BukkitKit} types,
+ * injects singletons and plugin wiring.
  */
 @SupportedAnnotationTypes({
         "dev.bukkitkit.api.Component",
+        "dev.bukkitkit.api.OnEvent",
         "dev.bukkitkit.api.BukkitKit"
 })
 @SupportedSourceVersion(SourceVersion.RELEASE_25)
@@ -53,6 +60,7 @@ public final class ComponentProcessor extends AbstractProcessor {
         JavacOpener.open();
         this.componentAnalyzer = new ComponentAnalyzer(
                 processingEnv.getElementUtils(),
+                processingEnv.getTypeUtils(),
                 processingEnv.getMessager());
         this.pluginAnalyzer = new PluginAnalyzer(
                 processingEnv.getElementUtils(),
@@ -60,7 +68,7 @@ public final class ComponentProcessor extends AbstractProcessor {
                 processingEnv.getMessager());
         this.validator = new GraphValidator(processingEnv.getMessager());
         JavacContext javac = JavacContext.from(processingEnv);
-        this.singletonInjector = new SingletonInjector(javac);
+        this.singletonInjector = new SingletonInjector(javac, processingEnv.getElementUtils());
         this.pluginInjector = new PluginInjector(javac);
         this.generator = new BootstrapGenerator(processingEnv.getFiler());
     }
@@ -78,15 +86,9 @@ public final class ComponentProcessor extends AbstractProcessor {
             }
         }
 
+        Map<String, TypeElement> managedTypes = collectManagedTypes(roundEnv, pluginTypeNames);
         List<ComponentModel> components = new ArrayList<>();
-        for (Element element : roundEnv.getElementsAnnotatedWith(Component.class)) {
-            if (!(element instanceof TypeElement typeElement)) {
-                processingEnv.getMessager().printMessage(
-                        Diagnostic.Kind.ERROR,
-                        "BukkitKit: @Component is only valid on types",
-                        element);
-                continue;
-            }
+        for (TypeElement typeElement : managedTypes.values()) {
             ComponentModel model = componentAnalyzer.analyze(typeElement);
             if (model != null) {
                 components.add(model);
@@ -165,5 +167,57 @@ public final class ComponentProcessor extends AbstractProcessor {
 
         processed = true;
         return false;
+    }
+
+    /**
+     * Types managed as singletons: {@code @Component} classes plus enclosing classes of
+     * {@code @OnEvent} methods. A type that is both is included once.
+     */
+    private Map<String, TypeElement> collectManagedTypes(
+            RoundEnvironment roundEnv,
+            Set<String> pluginTypeNames) {
+        Map<String, TypeElement> managed = new LinkedHashMap<>();
+
+        for (Element element : roundEnv.getElementsAnnotatedWith(Component.class)) {
+            if (!(element instanceof TypeElement typeElement)) {
+                processingEnv.getMessager().printMessage(
+                        Diagnostic.Kind.ERROR,
+                        "BukkitKit: @Component is only valid on types",
+                        element);
+                continue;
+            }
+            managed.put(typeElement.getQualifiedName().toString(), typeElement);
+        }
+
+        for (Element element : roundEnv.getElementsAnnotatedWith(OnEvent.class)) {
+            if (!(element instanceof ExecutableElement)) {
+                processingEnv.getMessager().printMessage(
+                        Diagnostic.Kind.ERROR,
+                        "BukkitKit: @OnEvent is only valid on methods",
+                        element);
+                continue;
+            }
+            Element enclosing = element.getEnclosingElement();
+            if (!(enclosing instanceof TypeElement typeElement)
+                    || typeElement.getKind() != ElementKind.CLASS) {
+                processingEnv.getMessager().printMessage(
+                        Diagnostic.Kind.ERROR,
+                        "BukkitKit: @OnEvent method must be declared on a class",
+                        element);
+                continue;
+            }
+            String typeName = typeElement.getQualifiedName().toString();
+            if (pluginTypeNames.contains(typeName)) {
+                processingEnv.getMessager().printMessage(
+                        Diagnostic.Kind.ERROR,
+                        "BukkitKit: @OnEvent is not supported on @BukkitKit plugins; "
+                                + "move the handler to its own class",
+                        element);
+                continue;
+            }
+            managed.putIfAbsent(typeName, typeElement);
+        }
+
+        return managed;
     }
 }

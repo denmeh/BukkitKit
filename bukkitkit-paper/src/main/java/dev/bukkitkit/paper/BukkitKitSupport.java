@@ -3,6 +3,7 @@ package dev.bukkitkit.paper;
 import dev.bukkitkit.api.BukkitKitException;
 import dev.bukkitkit.core.BootstrapLoader;
 
+import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
@@ -61,6 +62,7 @@ public final class BukkitKitSupport {
             return;
         }
         try {
+            HandlerList.unregisterAll(plugin);
             session.kitScheduler().cancelAll();
         } finally {
             stopAll(session.bootstraps());

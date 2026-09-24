@@ -16,15 +16,22 @@ import com.sun.tools.javac.tree.JCTree.JCVariableDecl;
 import com.sun.tools.javac.util.ListBuffer;
 import com.sun.tools.javac.util.Name;
 
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.util.Elements;
+
 /**
  * Injects package-private singleton storage into a {@code @Component} class (no public accessor).
  */
 public final class SingletonInjector {
 
-    private final JavaC jc;
+    private static final String BUKKIT_LISTENER = "org.bukkit.event.Listener";
 
-    public SingletonInjector(JavacContext javac) {
+    private final JavaC jc;
+    private final Elements elements;
+
+    public SingletonInjector(JavacContext javac, Elements elements) {
         this.jc = JavaC.of(javac);
+        this.elements = elements;
     }
 
     public void inject(ComponentModel model) {
@@ -39,6 +46,10 @@ public final class SingletonInjector {
         JavaC at = jc.at(classDecl.pos);
         Type classType = classSymbol.type;
 
+        if (model.needsListener()) {
+            injectListenerInterface(at, classDecl, classSymbol);
+        }
+
         com.sun.tools.javac.util.List<JCTree> defs = classDecl.defs
                 .append(createInstanceField(at, classSymbol, classType))
                 .append(createBindMethod(at, classSymbol, classType))
@@ -47,6 +58,38 @@ public final class SingletonInjector {
             defs = defs.append(createWireMethod(at, classSymbol, classDecl, model));
         }
         classDecl.defs = defs;
+    }
+
+    private void injectListenerInterface(JavaC jc, JCClassDecl classDecl, Symbol.ClassSymbol classSymbol) {
+        TypeElement listenerElement = elements.getTypeElement(BUKKIT_LISTENER);
+        if (!(listenerElement instanceof Symbol.ClassSymbol listener)) {
+            throw new IllegalStateException(
+                    "BukkitKit: " + BUKKIT_LISTENER + " not found on the classpath");
+        }
+        if (alreadyImplements(classDecl, listener)) {
+            return;
+        }
+        classDecl.implementing = classDecl.implementing.append(jc.qualIdent(listener));
+        if (classSymbol.type instanceof Type.ClassType classType) {
+            if (classType.interfaces_field == null) {
+                classType.interfaces_field = com.sun.tools.javac.util.List.of(listener.type);
+            } else {
+                classType.interfaces_field = classType.interfaces_field.append(listener.type);
+            }
+        }
+    }
+
+    private static boolean alreadyImplements(JCClassDecl classDecl, Symbol.ClassSymbol listener) {
+        String flat = listener.flatName().toString();
+        for (JCExpression iface : classDecl.implementing) {
+            String text = iface.toString();
+            if (text.equals(flat)
+                    || text.equals(listener.getSimpleName().toString())
+                    || text.endsWith("." + listener.getSimpleName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean alreadyInjected(JCClassDecl classDecl) {
